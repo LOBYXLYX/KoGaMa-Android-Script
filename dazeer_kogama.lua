@@ -17,6 +17,9 @@ saved_player_coordinates = '???'
 cube_radius_selection = 'REMOVING'
 weapondamage_values = 'DAMAGE: ' -- revert
 dialog_interval_coords = '300'
+previous_profile_id = ''
+token_profile_replace = '???'
+original_profile_token = ''
 
 radius_belowplayer = {bool = false}
 radiussimple_disable_duration = {bool = false}
@@ -102,6 +105,8 @@ function notFoundError(result_name, change_value, type, _return, _get, radius_sl
    	ggTYPE = gg.TYPE_FLOAT
    elseif type == 'dword' then
    	ggTYPE = gg.TYPE_DWORD
+   elseif type == 'word' then
+   	ggTYPE = gg.TYPE_WORD
    else
    	print('Invalid search type')
    	return
@@ -1134,6 +1139,17 @@ function AdjustDialogViewerMicroSeconds()
 	PlayerCoordsViewerOption()
 end
 
+function ProfileTokenChange()
+	token_profile_replace = gg.prompt({'Token To Replace'}, {''}, {'text'})[1]
+	isSavedResult('Profile token', token_profile_replace, 'word')
+	ProfileTokenOption()
+end
+
+function ViewOriginalProfileToken()
+	gg.prompt({'Your token'}, {original_profile_token}, {'text'})
+	ProfileTokenOption()
+end
+
 function CustomResolutionValue()
 	local values = gg.prompt({'Width', 'Height'}, {1366, 768}, {'number', 'number'})
 	isSavedResult('Resul changer', values[1]..';'..values[2], 'float')
@@ -1156,11 +1172,9 @@ function CustomResolutionFloatSimple()
 	isSavedResult('Resul changer', value, 'float')
 end
 	
-
 function TextToCopyPrompt(text)
-	local copy = gg.prompt({'Text to copy'}, {text}, {'text'})
-	if copy == nil then PlayerCoordsViewerOption() end
-	if copy[1] ~= nil then PlayerCoordsViewerOption() end
+	gg.prompt({'Text to copy'}, {text}, {'text'})
+	PlayerCoordsViewerOption()
 end
 
 function SearchWeaponDamage(results)
@@ -1505,7 +1519,6 @@ function PlayerOption()
 		'𝘈𝘷𝘢𝘵𝘢𝘳 𝘙𝘢𝘥𝘪𝘶𝘴  (𝘴𝘪𝘮𝘱𝘭𝘦)',
 		'𝘕𝘰𝘤𝘭𝘪𝘱',
 		'𝘚𝘱𝘦𝘦𝘥 𝘉𝘰𝘰𝘴𝘵 𝘔𝘶𝘭𝘵𝘪𝘱𝘭𝘪𝘦𝘳' ,
-		'𝘗𝘭𝘢𝘺𝘦𝘳 𝘓𝘦𝘷𝘦𝘭 𝘜𝘱',
 		'𝘚𝘱𝘢𝘸𝘯 𝘗𝘳𝘰𝘵𝘦𝘤𝘵𝘪𝘰𝘯',
 		'𝘍𝘳𝘦𝘦𝘻𝘦 𝘗𝘭𝘢𝘺𝘦𝘳𝘴 (𝘞𝘦𝘢𝘱𝘰𝘯)',
 		'𝘚𝘦𝘭𝘧 𝘏𝘦𝘢𝘭 + 𝘈𝘭𝘭 𝘉𝘋',
@@ -1532,22 +1545,21 @@ function PlayerOption()
 	if options[6] == true then AvatarRadiusValuesOption() end
 	if options[7] == true then NoclipV2() end
 	if options[8] == true then SpeedPlayer() end
-	if options[9] == true then PlayerLevel() end
-	if options[10] == true then PlayerEffect('17') end
-	if options[11] == true then WeaponsCrashOption() end
-	if options[12] == true then PlayerEffect('18') end
-	if options[13] == true then NeverCrushed() end
-	if options[14] == true then PlayerSizeAdvanced() end
-	if options[15] == true then NoImpulsePlayer() end
-	if options[16] == true then ReviveMode() end
-	if options[17] == true then HealthPlayerSetID('5', 'Invisiblity') end
-	if options[18] == true then AntiImpactPlayer() end
-	if options[19] == true then WeaponsWithGrowth() end
-	if options[20] == true then GameWallsInteraction('9999', 'Show Enemy Icon Through Walls', true) end
-	if options[21] == true then NoEquipWeapons() end
-	if options[22] == true then AvatarHitboxRange() end
-	if options[23] == true then TeleportOption() end
-	if options[24] == true then AnimationsOption() end
+	if options[9] == true then PlayerEffect('17') end
+	if options[10] == true then WeaponsCrashOption() end
+	if options[11] == true then PlayerEffect('18') end
+	if options[12] == true then NeverCrushed() end
+	if options[13] == true then PlayerSizeAdvanced() end
+	if options[14] == true then NoImpulsePlayer() end
+	if options[15] == true then ReviveMode() end
+	if options[16] == true then HealthPlayerSetID('5', 'Invisiblity') end
+	if options[17] == true then AntiImpactPlayer() end
+	if options[18] == true then WeaponsWithGrowth() end
+	if options[19] == true then GameWallsInteraction('9999', 'Show Enemy Icon Through Walls', true) end
+	if options[20] == true then NoEquipWeapons() end
+	if options[21] == true then AvatarHitboxRange() end
+	if options[22] == true then TeleportOption() end
+	if options[23] == true then AnimationsOption() end
 end
 
 function PhysLogicOption()
@@ -2131,6 +2143,18 @@ function CubeGunShapeEditOption()
 	if options[6] == true then RandomShapeCube() end
 end
 
+function ProfileTokenOption()
+	local options = gg.multiChoice({
+		'your original token:  [View_in_bytes]',
+		'token_replace:  '..token_profile_replace,
+		'Desactive Profile Token'
+	},nil,'Profile Token Viewer\nNote: Activate this before the "Joined" comes out of the red cube')
+	if options == nil then ReturnMain() return end
+	if options[1] == true then ViewOriginalProfileToken() end
+	if options[2] == true then ProfileTokenChange() end
+	if options[3] == true then isSavedResult('Profile token', '0', 'dword', nil, 'desactive') end
+end
+
 function GameResolutionSettingOption()
 	local function Change(resolution_value)
 		isSavedResult('Resul changer', resolution_value, 'float')
@@ -2303,6 +2327,7 @@ function NPCAIOption()
 	local options = gg.multiChoice({
 		'𝘕𝘰 𝘖𝘤𝘶𝘭𝘶𝘴 𝘞𝘦𝘢𝘱𝘰𝘯',
 		'𝘕𝘰 𝘖𝘤𝘶𝘭𝘶𝘴 𝘚𝘰𝘶𝘯𝘥',
+		'𝘕𝘰 𝘖𝘤𝘶𝘭𝘶𝘴 𝘋𝘢𝘮𝘢𝘨𝘦',
 		'𝘝𝘦𝘩𝘪𝘤𝘭𝘦 𝘊𝘢𝘮𝘦𝘳𝘢 - 𝘍𝘖𝘝',
 		'𝘕𝘰 𝘐𝘤𝘦 𝘛𝘰𝘸𝘦𝘳',
 		'𝘕𝘰 𝘍𝘪𝘳𝘦 𝘛𝘰𝘸𝘦𝘳',
@@ -2313,11 +2338,12 @@ function NPCAIOption()
 	if options == nil then ReturnMain() return end
 	if options[1] == true then NoOculusWeapon() end
 	if options[2] == true then NoOculusSoundEffect() end
-	if options[3] == true then VehicleCameraFov() end
-	if options[4] == true then NoIceTower() end
-	if options[5] == true then NoFireTower() end
-	if options[7] == true then InfiniteJetpack() end
-	if options[8] == true then SpeedJetPack() end
+	if options[3] == true then NoOculusDamage() end
+	if options[4] == true then VehicleCameraFov() end
+	if options[5] == true then NoIceTower() end
+	if options[6] == true then NoFireTower() end
+	if options[8] == true then InfiniteJetpack() end
+	if options[9] == true then SpeedJetPack() end
 end
 
 function ShopOption()
@@ -2352,6 +2378,8 @@ function OtherOption()
    	 '𝘊𝘶𝘣𝘦 𝘙𝘢𝘥𝘪𝘶𝘴 𝘛𝘺𝘱𝘦  (𝘧𝘰𝘳 𝘊𝘶𝘣𝘦 𝘊𝘶𝘯 - 𝘙𝘢??𝘪𝘶𝘴)',
    	 '𝘙𝘦𝘴𝘰𝘭𝘶𝘵𝘪𝘰𝘯 𝘊𝘩𝘢𝘯𝘨𝘦𝘳',
    	 '𝘚𝘮𝘰𝘰𝘵𝘩 𝘊𝘢𝘮',
+   	 '𝘗𝘳𝘰𝘧𝘪𝘭𝘦 𝘐𝘋 + 𝘓𝘝𝘓 𝘜𝘱  (𝘝𝘪𝘴𝘶𝘢𝘭)',
+    	'[*]  𝘗𝘳𝘰𝘧𝘪𝘭𝘦 𝘛𝘰𝘬𝘦𝘯',
 		'𝘎𝘢𝘮𝘦 𝘎𝘳𝘢𝘱𝘩𝘪𝘤𝘴  (𝘈𝘯𝘥𝘳𝘰𝘪𝘥)',
 		'𝘔𝘰𝘷𝘦𝘮𝘦𝘯𝘵𝘴 𝘚𝘱𝘦𝘦𝘥'
 	})
@@ -2364,14 +2392,125 @@ function OtherOption()
 	if options[6] == true then CubeRadiusTypeOptions() end
 	if options[7] == true then ResolutionChanger() end
 	if options[8] == true then SmoothCamera() end
-	if options[9] == true then GameGraphicsOption() end
-	if options[10] == true then AnimationSpeed() end
+	if options[9] == true then ProfileID_LevelUp() end
+	if options[10] == true then ProfileToken() end
+	if options[11] == true then GameGraphicsOption() end
+	if options[12] == true then AnimationSpeed() end
 end
 
 -- ##########################################################
 -- sword weapon values: 0.30000001192F;0;4097
 -- oculus other values: 5;1000;0.9;2.5
 -- oculus sound:  0.103
+-- oculus damage: 0.5;17;4
+
+function ProfileToken()
+	-- This hack is probably necessary. After kogama added tourists to the registered servers
+	
+	if checkSavedResults('Profile token') then
+		ProfileTokenOption()
+		return
+	end
+	
+	-- pause KoGaMa App
+	local tourist_token = '0.tjxgbEYSDy5MWYyj2ducSL0F8aA'
+	gg.processPause()
+	
+	gg.clearResults()
+	gg.setRanges(gg.REGION_ANONYMOUS)
+	gg.searchNumber('1,869,881,900;577,660,267;100~32,000W::52', gg.TYPE_DWORD)
+	gg.refineNumber('100~32,000', gg.TYPE_WORD)
+	
+	-- play 
+	gg.processResume()
+	
+	if gg.getResultsCount() <= 0 then
+		gg.toast('No found results. The game must be paused before "Joined"')
+		return
+	end
+	
+	local results = gg.getResults('200')
+	gg.editAll(tourist_token, gg.TYPE_WORD)
+	token_profile_replace = tourist_token
+	
+	for lp, token_result in ipairs(results) do
+		token_result.value = token_result.value .. original_profile_token
+	end
+	
+	success('Obtained Account Token', 'Profile token', results)
+	ProfileTokenOption()
+end
+
+function ProfileID_LevelUp()
+	-- search format:  -1;level;profile_id;259,000~262,000;-3780~-3700;1
+	local level_value = '45'
+	local profile_changer = '40000000'
+	
+	if checkSavedResults('Level value') or checkSavedResults('Profile value') then
+		if previous_profile_id == '' then
+			previous_profile_id = '1'
+		end
+		
+		isSavedResult('Level value', '1', 'dword', nil, 'desactive')
+		isSavedResult('Profile value', previous_profile_id, 'dword', nil, 'desactive')
+		return
+	end
+	
+	local function LoadResult(results, save_name, refined_results)
+		success('Activing..', save_name, refined_results)
+		gg.sleep('100')
+		gg.clearResults()
+		gg.loadResults(results)
+		gg.getResults('10')
+	end
+	
+	gg.clearResults()
+	gg.setRanges(gg.REGION_ANONYMOUS)
+	gg.searchNumber('-1;1~45;100,000~1,147,000;259,000~262,000;-3780~-3700;1', gg.TYPE_DWORD)
+	local primary_results = gg.getResults('100')
+	
+	if gg.getResultsCount() <= 0 then
+		notFoundError()
+		return
+	end
+	
+	-- level value
+	gg.refineNumber('1~45', gg.TYPE_DWORD)
+	local results1 = gg.getResults('5')
+	gg.editAll(level_value, gg.TYPE_DWORD)
+	LoadResult(primary_results, 'Level value', results1)
+	
+	-- profile id
+	gg.refineNumber('100,000~1,147,000', gg.TYPE_DWORD)
+	local results2 = gg.getResults('2')
+	previous_profile_id = results2[1].value
+	gg.editAll(profile_changer, gg.TYPE_DWORD)
+	LoadResult(primary_results, 'Profile value', results2)
+	
+	gg.clearResults()
+	gg.toast('Actived Profle ID + Level Up')
+end
+
+function NoOculusDamage()
+	local saved = isSavedResult('Oculus damage', '0.5;17;4', 'float', nil, 'desactive')
+	if saved == true then
+		return
+	end
+	
+	gg.clearResults()
+	gg.setRanges(gg.REGION_ANONYMOUS)
+	gg.searchNumber('0.00999999978;0.5;17;4;17', gg.TYPE_FLOAT)
+	gg.refineNumber('0.00999999978;0.5;4', gg.TYPE_FLOAT)
+	
+	if gg.getResultsCount() <= 0 then
+		notFoundError()
+		return
+	end
+	
+	local results = gg.getResults('1000')
+	gg.editAll('100', gg.TYPE_FLOAT)
+	success('Actived No Oculus Damage', 'Oculus damage', results)
+end
 
 function GameChunkDistance(value_type)
 	local value_group_chunk
@@ -3695,6 +3834,7 @@ function ReviveMode()
 
 				
 				-- check if the player has already respawned 
+				print('laaaa')
 				local rDead_player = isEqualResultDead(new_results, result_address)
 				if rDead_player == true then
 					-- Coordinates where it reappeared
