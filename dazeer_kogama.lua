@@ -20,6 +20,7 @@ dialog_interval_coords = '300'
 previous_profile_id = ''
 token_profile_replace = '???'
 original_profile_token = ''
+selected_weapon_id = '0'
 
 radius_belowplayer = {bool = false}
 radiussimple_disable_duration = {bool = false}
@@ -45,6 +46,7 @@ flyhack_actived = 2
 swordrapifire_actived = 2
 cubegunrapidfire_actived = 2
 gamewalls_actived = 2
+jetpack_nooverheat_actived = 2
 
 ----------------------------------------
 
@@ -623,7 +625,22 @@ function SearchCoordinates(results, results_count)
 		other_values = 0.75,
 		other_values2 = 1.0,
 		other_values3 = 0.7499998807907104,
-		other_values4 = 0.15600000321865082
+		other_values4 = 0.15600000321865082,
+		other_values7 = 2.0,
+		other_negative_values8 = -19.0,
+		other_values9 = 52.8125,
+		other_values10 = 3.5,
+		other_values11 = 2.5,
+		other_values12 = 49.0,
+		other_values13 = 0.05000000074505806,
+		other_values14 = 0.707103431224823,
+		other_values15 = 0.7071101069450378,
+		other_values17 = 1.0000000331813535E32,
+		other_negative_values18 = -0.7071067094802856,
+		other_values19 = 0.765167236328125,
+		other_values20 = 0.6438315510749817,
+		other_negative_values21 = 4.371138828673793E-8,
+		other_negative_values22 = 1.1733453720808029E-4
 	}
 	results_count = results_count or '9999'
 	
@@ -1155,6 +1172,11 @@ function CustomResolutionValue()
 	isSavedResult('Resul changer', values[1]..';'..values[2], 'float')
 end
 
+function WeaponSelectIDValue()
+	selected_weapon_id = gg.prompt({'Weapon ID (1 to 70)'}, {tonumber(selected_weapon_id)}, {'number'})[1]
+	SpawnWeaponID(selected_weapon_id)
+end
+
 function CustomResolutionFloatSimple()
 	local results = getSavedResults('Resul changer', 'float')
 	local second_value = results[2].value
@@ -1421,7 +1443,12 @@ function OptionHackActivation(hack_name_boolean, result_name, type, value_on, va
 end
 
 function SecondOptionHackActivation(hack_name_boolean)
-	local option = gg.choice({'𝘖𝘕','𝘖𝘍𝘍'},hack_name_boolean,'Activation')
+	local number_option = 2
+	if hack_name_boolean.bool == true then
+		number_option = 1
+	end
+	
+	local option = gg.choice({'𝘖𝘕','𝘖𝘍𝘍'},number_option,'Activation')
 	if option == nil then ReturnMain() return end
 	if option == 1 then
 		hack_name_boolean.bool = true
@@ -1458,6 +1485,97 @@ function ShowCoordinatesInDialog()
 	gg.sleep(dialog_interval_coords)
 	ShowCoordinatesInDialog()
 end
+
+function INFAvModifierPackgesSelection()
+	local found_text = false
+	local exceeded = false
+	local modifier_exceeded
+	local is_showed_button = false
+	
+	local function splitText(text)
+		local text_parts = {}
+		local for_comma = '([^,]+)'
+		
+		for x in string.gmatch(text, for_comma) do
+			print(x)
+    		table.insert(text_parts, x)
+		end
+		return text_parts
+	end
+	
+	if checkSavedResults('Player Effects (change to 0 to desactive it)') == false then
+		gg.alert('Active "All Blocks Destructibles" or "Spawn Proctection" first')
+		return Dazeer()
+	end
+	
+	gg.alert('AvatarModifierPackageType: \n\n1:  Fire\n2:  Mutant\n3:  Sticky\n4:  Poison\n5:  WallJump\n6:  InstantDeath\n7:  NoFriction\n8:  FlamerBurn\n9:  Underwater\n10:  Frozen\n11:  NinjaRun\n12:  Shrunken\n13:  WindFriction\n14:  DisableVehiclePickup\n15:  Enlarged\n16:  Shielded\n17:  SpawnProtection\n18:  RayHeal\n19:  TimeAttackFlagDebriefSlow\n20:  Lethal\n21:  HealingMat\n22:  SlowMat\n23:  SpeedMat\n24:  CrumbleMat\n25:  RayHealEnemy')
+	local fav_modifier = gg.prompt({'Select groups of IDs using commas (example: 3,16,18)\n1 to 25'})[1]
+	fav_modifier = splitText(fav_modifier)
+	
+	if fav_modifier == nil then
+		gg.alert('You must select more than 1 IDs, you only selected 1')
+		return
+	end
+	
+	for num, fav in pairs(fav_modifier) do
+		if tonumber(fav) == nil then
+			gg.alert('Must be a number. "'..fav..'"')
+			found_text = true
+			break
+		end
+		
+		if tonumber(fav) > 25 then
+			exceeded = true
+			modifier_exceeded = fav
+			break
+		end
+		
+		if tonumber(fav) == 0 then
+			fav = '1'
+		end
+	end
+	
+	if exceeded == true then
+		gg.alert('Invalid modifier ID: '..modifier_exceeded)
+		return
+	elseif found_text == true then
+		return
+	end
+	
+	local function PlayerEffectModifierFav(modifier_favs)
+		for num, fav in pairs(modifier_favs) do
+			if gg.isClickedUiButton() then
+        		gg.toast('Desactiving')
+        		is_showed_button = false
+        		return
+        	end
+        
+			gg.editAll(fav, gg.TYPE_DWORD)
+			gg.sleep('2000')
+		end
+		PlayerEffectModifierFav(modifier_favs)
+	end
+	
+	local avmresults = getSavedResults('Player Effects (change to 0 to desactive it)', 'dword')
+	gg.clearResults()
+	gg.loadResults(avmresults)
+	gg.getResults('999')
+	
+	if is_showed_button == false then
+		gg.showUiButton()
+		is_showed_button = true
+	end
+	
+	PlayerEffectModifierFav(fav_modifier)
+	if is_showed_button == false then
+		gg.hideUiButton()
+    	gg.setVisible(false)
+		return Dazeer()
+	end
+end
+
+	
+	
 
 -- Player Health: -0.00000582226;100D;100   type: float
 -- Jetpack player mode: 100F;0D;1F;100;0~1   type: dword. refine 0~1
@@ -1514,13 +1632,14 @@ function PlayerOption()
 		'𝘈𝘷𝘢𝘵𝘢𝘳 𝘔𝘰𝘥𝘪𝘧𝘪𝘦𝘳',
 		'𝘐𝘕𝘍. 𝘏𝘦𝘢𝘭𝘵𝘩',
 		'𝘈𝘭𝘭 𝘉𝘭𝘰𝘤𝘬𝘴 𝘋𝘦𝘴𝘵𝘳𝘶𝘤𝘵𝘪𝘣𝘭𝘦',
+		'𝘐𝘕𝘍. 𝘈𝘷𝘢𝘵𝘢𝘳 𝘔𝘰𝘥𝘪𝘧𝘪𝘦𝘳 𝘗𝘢𝘤𝘬𝘨𝘦𝘴',
 		'𝘕𝘰 𝘍𝘢𝘭𝘭',
 		'𝘈𝘷𝘢𝘵𝘢𝘳 𝘙𝘢𝘥𝘪𝘶𝘴',
 		'𝘈𝘷𝘢𝘵𝘢𝘳 𝘙𝘢𝘥𝘪𝘶𝘴  (𝘴𝘪𝘮𝘱𝘭𝘦)',
 		'𝘕𝘰𝘤𝘭𝘪𝘱',
 		'𝘚𝘱𝘦𝘦𝘥 𝘉𝘰𝘰𝘴𝘵 𝘔𝘶𝘭𝘵𝘪𝘱𝘭𝘪𝘦𝘳' ,
 		'𝘚𝘱𝘢𝘸𝘯 𝘗𝘳𝘰𝘵𝘦𝘤𝘵𝘪𝘰𝘯',
-		'𝘍𝘳𝘦𝘦𝘻𝘦 𝘗𝘭𝘢𝘺𝘦𝘳𝘴 (𝘞𝘦𝘢𝘱𝘰𝘯)',
+		'𝘐𝘮𝘱𝘶𝘭𝘴𝘦 𝘍𝘳𝘦𝘦𝘻𝘦  (𝘞𝘦𝘢𝘱𝘰𝘯)',
 		'𝘚𝘦𝘭𝘧 𝘏𝘦𝘢𝘭 + 𝘈𝘭𝘭 𝘉𝘋',
 		'[*]  𝘕𝘦𝘷𝘦𝘳 𝘊𝘳𝘶𝘴𝘩𝘦𝘥',
 		'𝘎𝘪𝘢𝘯𝘵 𝘈𝘷𝘢𝘵𝘢𝘳 + 𝘔𝘶𝘭𝘵𝘪𝘱𝘭𝘪𝘦𝘳',
@@ -1531,6 +1650,7 @@ function PlayerOption()
 		'[*]  𝘞𝘦𝘢𝘱𝘰𝘯𝘴 𝘞𝘪𝘵𝘩 𝘎𝘳𝘰𝘸𝘵𝘩',
 		'𝘚𝘩𝘰𝘸 𝘌𝘯𝘦𝘮𝘺 𝘐𝘤𝘰𝘯 𝘛𝘩𝘳𝘰𝘶𝘨𝘩 𝘞𝘢𝘭𝘭𝘴 (𝘭𝘪𝘬𝘦 𝘌𝘚𝘗)',
 		'𝘕𝘰 𝘌𝘲𝘶𝘪𝘱 𝘞𝘦𝘢𝘱𝘰𝘯𝘴',
+		'𝘔𝘢𝘨𝘯𝘦𝘵 𝘵𝘰 𝘗𝘭𝘢𝘺𝘦𝘳 / 𝘖𝘣𝘫𝘦𝘤𝘵',
 		'𝘈𝘷𝘢𝘵𝘢𝘳 𝘏𝘪𝘵𝘣𝘰𝘹 - 𝘙𝘢𝘯𝘨𝘦',
 		'𝘛𝘦𝘭𝘦𝘱𝘰𝘳𝘵',
 		'𝘈𝘷𝘢𝘵𝘢𝘳 𝘈𝘯𝘪𝘮𝘢𝘵𝘪𝘰𝘯𝘴'
@@ -1540,26 +1660,28 @@ function PlayerOption()
 	if options[1] == true then AvatarModifierOption() end
 	if options[2] == true then InfiniteHealthExecuteOption() end
 	if options[3] == true then PlayerEffect('25') end
-	if options[4] == true then NoFall() end
-	if options[5] == true then RemoveCubegunsXYZ() end
-	if options[6] == true then AvatarRadiusValuesOption() end
-	if options[7] == true then NoclipV2() end
-	if options[8] == true then SpeedPlayer() end
-	if options[9] == true then PlayerEffect('17') end
-	if options[10] == true then WeaponsCrashOption() end
-	if options[11] == true then PlayerEffect('18') end
-	if options[12] == true then NeverCrushed() end
-	if options[13] == true then PlayerSizeAdvanced() end
-	if options[14] == true then NoImpulsePlayer() end
-	if options[15] == true then ReviveMode() end
-	if options[16] == true then HealthPlayerSetID('5', 'Invisiblity') end
-	if options[17] == true then AntiImpactPlayer() end
-	if options[18] == true then WeaponsWithGrowth() end
-	if options[19] == true then GameWallsInteraction('9999', 'Show Enemy Icon Through Walls', true) end
-	if options[20] == true then NoEquipWeapons() end
-	if options[21] == true then AvatarHitboxRange() end
-	if options[22] == true then TeleportOption() end
-	if options[23] == true then AnimationsOption() end
+	if options[4] == true then INFAvModifierPackgesSelection() end
+	if options[5] == true then NoFall() end
+	if options[6] == true then RemoveCubegunsXYZ() end
+	if options[7] == true then AvatarRadiusValuesOption() end
+	if options[8] == true then NoclipV2() end
+	if options[9] == true then SpeedPlayer() end
+	if options[10] == true then PlayerEffect('17') end
+	if options[11] == true then WeaponsCrashOption() end
+	if options[12] == true then PlayerEffect('18') end
+	if options[13] == true then NeverCrushed() end
+	if options[14] == true then PlayerSizeAdvanced() end
+	if options[15] == true then NoImpulsePlayer() end
+	if options[16] == true then ReviveMode() end
+	if options[17] == true then HealthPlayerSetID('5', 'Invisiblity') end
+	if options[18] == true then AntiImpactPlayer() end
+	if options[19] == true then WeaponsWithGrowth() end
+	if options[20] == true then GameWallsInteraction('9999', 'Show Enemy Icon Through Walls', true) end
+	if options[21] == true then NoEquipWeapons() end
+	if options[22] == true then MagnetToPlayer_Object() end
+	if options[23] == true then AvatarHitboxRange() end
+	if options[24] == true then TeleportOption() end
+	if options[25] == true then AnimationsOption() end
 end
 
 function PhysLogicOption()
@@ -1616,7 +1738,7 @@ function GiantAvatarOption()
 	
 	local options = gg.multiChoice({
    	 '𝘔𝘶𝘭𝘵𝘪𝘱𝘭𝘪𝘦𝘳  (𝘮𝘪𝘯𝘪𝘮𝘶𝘮 = 1);  '.._giant_avatar_multiplier,
-  	  '𝘚𝘪𝘻𝘦 𝘝𝘢𝘭𝘶𝘦  (𝘮𝘪𝘯𝘪𝘮𝘶𝘮 = 0.01);  '.._giant_avatar_value,
+  	  '𝘚𝘪𝘻𝘦 𝘝𝘢𝘭𝘶𝘦  (𝘮𝘪??𝘪𝘮𝘶𝘮 = 0.01);  '.._giant_avatar_value,
 	}, nil, 'Press "Cancel" to return menu')
 	if options == nil then ReturnMain() return end
 	if options[1] == true then SetGiantMultiplier() end
@@ -1756,13 +1878,13 @@ function AvatarRadiusValuesOption() -- simple
 				
 			elseif options[15] == true then
 				SecondOptionHackActivation(radiussimple_disable_duration)
-				return PlayerOption()				
+				return AvatarRadiusValuesOption()				
 			elseif options[16] == true then
 				SecondOptionHackActivation(radiussimple_antilag)
-				return PlayerOption()
+				return AvatarRadiusValuesOption()
 			elseif options[17] == true then
 				SecondOptionHackActivation(radius_belowplayer)
-				return PlayerOption()
+				return AvatarRadiusValuesOption()
 			elseif options[18] == true then AutoRemoveCubes() end
 		end
 	end
@@ -1926,7 +2048,8 @@ function CameraOption()
    	 '𝘡𝘰𝘰𝘮  (𝘶𝘴𝘦 𝘙𝘢𝘪𝘭 𝘎𝘶𝘯)',
   	  '𝘞𝘦𝘢𝘱𝘰𝘯 𝘊𝘢𝘮𝘦𝘳𝘢 𝘏𝘦𝘪𝘨𝘩𝘵',
   	  '𝘕𝘰 𝘊𝘢𝘮𝘦𝘳𝘢 𝘊𝘰𝘭𝘭𝘪𝘴𝘪𝘰𝘯',
-  	  '𝘞𝘦𝘢𝘱𝘰𝘯 𝘚𝘦𝘯𝘴𝘪𝘷𝘪𝘵𝘺'
+  	  '𝘞𝘦𝘢𝘱𝘰𝘯 𝘚𝘦𝘯𝘴𝘪𝘷𝘪𝘵𝘺',
+  	  '𝘛𝘩𝘪𝘳𝘥 𝘗𝘦𝘳𝘴𝘰𝘯 𝘝𝘪𝘦𝘸  (𝘞𝘦𝘢𝘱𝘰𝘯)'
 	})
 	if options == nil then ReturnMain() return end
 	if options[1] == true then Camera() end
@@ -1952,10 +2075,10 @@ end
 
 function BazookaDamageRadiusOption()
 	local options = gg.multiChoice({
-  	  '𝘙𝘢𝘥𝘪𝘶𝘴 (𝘯𝘰𝘳𝘮𝘢𝘭 = 10);  '.._bazooka_radius,
- 	   '𝘙𝘢𝘯𝘨𝘦 (𝘯𝘰𝘳𝘮𝘢𝘭 = 150);  '.._bazooka_range,
- 	   '𝘉𝘶𝘭𝘭𝘦𝘵 𝘚𝘱𝘦𝘦𝘥 (𝘯𝘰𝘳𝘮𝘢𝘭 = 30);  '.._bazooka_bullet_speed,
- 	   '𝘋𝘦𝘴𝘢𝘤𝘵𝘪𝘷𝘦 𝘉𝘢𝘻𝘰??𝘬𝘢 - 𝘋𝘢𝘮𝘢𝘨𝘦'
+  	  '𝘙𝘢𝘥𝘪𝘶𝘴  (𝘯𝘰𝘳𝘮𝘢𝘭 = 10);  '.._bazooka_radius,
+ 	   '𝘙𝘢𝘯𝘨𝘦  (𝘯𝘰𝘳𝘮𝘢𝘭 = 150);  '.._bazooka_range,
+ 	   '𝘉𝘶𝘭𝘭𝘦𝘵 𝘚𝘱𝘦𝘦𝘥  (𝘯𝘰𝘳𝘮𝘢𝘭 = 30);  '.._bazooka_bullet_speed,
+ 	   '𝘖𝘯/𝘖𝘧𝘧 - 𝘉𝘢𝘻𝘰𝘰𝘬𝘢 - 𝘋𝘢𝘮𝘢𝘨𝘦'
 	}, nil, 'Bazooka - Settings Damage')
 	if options == nil then ReturnMain() return end
 	if options[1] == true then BazookaRadiusValue() end
@@ -1971,27 +2094,47 @@ end
 
 function ImpulseGunRangeRadiusOption()
 	local options = gg.multiChoice({
-   	 '𝘙𝘢𝘯𝘨𝘦 (𝘯𝘰𝘳𝘮𝘢𝘭 = 25);  '.._impulsegun_range,
-  	  '𝘙𝘢𝘥𝘪𝘶𝘴 (𝘯𝘰𝘳𝘮𝘢𝘭 = 1.2);  '.._impulsegun_radius,
+   	 '𝘙𝘢𝘯𝘨𝘦  (𝘯𝘰𝘳𝘮𝘢𝘭 = 25);  '.._impulsegun_range,
+  	  '𝘙𝘢𝘥𝘪𝘶𝘴  (𝘯𝘰𝘳𝘮𝘢𝘭 = 1.2);  '.._impulsegun_radius,
   	  '𝘕𝘰 𝘐𝘮𝘱𝘶𝘭𝘴𝘦 𝘠𝘰𝘶𝘳𝘴𝘦𝘭𝘧',
-  	  '𝘋𝘦𝘴𝘢𝘤𝘵𝘪𝘷𝘦 𝘐𝘮𝘱𝘶𝘭𝘴𝘦 𝘎𝘶𝘯 - 𝘙𝘢𝘯𝘨𝘦'
+  	  '𝘕𝘰 𝘐𝘮𝘱𝘶𝘭𝘴𝘦 𝘍𝘳𝘦𝘲𝘶𝘦𝘯𝘤𝘺',
+  	  '𝘖𝘯/𝘖𝘧𝘧 - 𝘐𝘮𝘱𝘶𝘭𝘴𝘦 𝘎𝘶𝘯 - 𝘙𝘢𝘯𝘨𝘦'
 	}, nil, 'Impulse - Settings')
 	if options == nil then ReturnMain() return end
 	if options[1] == true then ImpulseGunRangeValue() end
 	if options[2] == true then ImpulseGunRadiusValue() end
 	if options[3] == true then isSavedResult('Impulse Gun Self Impulse', '0', 'float') end
-	if options[4] == true then
+	if options[4] == true then isSavedResult('Impulde Gun Frencuency', '0', 'float') end
+	if options[5] == true then
 		isSavedResult('Impulse Gun Range', '25', 'float', nil, 'desactive')
 		isSavedResult('Impulse Gun Radius', '1.2', 'float', nil, 'desactive')
 		isSavedResult('Impulse Gun Self Impulse', '1600', 'float', nil, 'desactive')
+		isSavedResult('Impulse Gun Frecuency', '15', 'float', nil, 'desactive')
 	end
 end
 
+function PlayerToChaseNumber(results_number) -- DEVELOPING
+    local function GetAllPlayerCoords(count)
+        local new_results = {}
+        for i = 1, count do
+            local nmp = getSavedResults(tostring(i), 'float')
+            if nmp ~= false and new_results[nmp[1].name] == nil then
+                print(nmp[1].name)
+                new_results[nmp[1].name] = nmp.name
+            end
+        end
+        print(new_results)
+        return new_results
+    end
+
+    local option_players_number = GetAllPlayerCoords(results_number)
+    local options = gg.multiChoice(table.unpack(option_players_number), nil, 'Select a Player Number')
+end
 
 function WeaponsOption()
     local options = gg.multiChoice({
     	'𝘐𝘕𝘍. 𝘈𝘮𝘮𝘰  (𝘈𝘓𝘓 𝘞𝘦𝘢𝘱𝘰𝘯𝘴)',
-    	'𝘞𝘦𝘢𝘱𝘰𝘯 𝘚𝘱𝘢𝘸𝘯  (𝘴𝘪𝘮𝘱𝘭𝘦)',
+    	'𝘞𝘦𝘢𝘱𝘰𝘯 𝘚𝘱𝘢𝘸𝘯  (𝘛𝘰𝘶𝘤𝘩 𝘢𝘯𝘰𝘵𝘩𝘦𝘳 𝘸𝘦𝘢𝘱𝘰𝘯 𝘵𝘰 𝘳𝘦𝘴𝘱𝘢𝘸𝘯)',
    	 '𝘉𝘶𝘭𝘭𝘦𝘵  (𝘚𝘱𝘦𝘦𝘥,𝘙𝘢𝘯𝘨𝘦)',
   	  '𝘙𝘢𝘱𝘪𝘥 𝘍𝘪𝘳𝘦  (𝘰𝘵𝘩𝘦𝘳 𝘸𝘦𝘢𝘱𝘰𝘯𝘴)',
   	  '[*]  𝘏𝘪𝘵 𝘋𝘢𝘮𝘢𝘨𝘦',
@@ -2053,7 +2196,7 @@ function DoubleSixShooterOption()
 	local options = gg.multiChoice({
 		'𝘈𝘶𝘵𝘰 𝘚𝘩𝘰𝘵 - 𝘚𝘪𝘹-𝘚𝘩𝘰𝘰𝘵𝘦𝘳',
 		'𝘕𝘰 𝘙𝘦𝘤𝘰𝘪𝘭 - 𝘋𝘰𝘶𝘣𝘭𝘦 𝘚𝘪𝘹-𝘚𝘩𝘰𝘰𝘵𝘦𝘳',
-		'𝘋𝘦𝘴𝘢𝘤𝘵𝘪𝘷𝘦 𝘈𝘶𝘵𝘰 𝘍𝘪𝘳𝘦 - 𝘋𝘰𝘶𝘣𝘭𝘦 𝘚𝘪𝘹-𝘚𝘩𝘰𝘰𝘵𝘦𝘳'
+		'𝘖𝘯/𝘖𝘧𝘧 - 𝘈𝘶𝘵𝘰 𝘍𝘪𝘳𝘦 - 𝘋𝘰𝘶𝘣𝘭𝘦 𝘚𝘪𝘹-𝘚𝘩𝘰𝘰𝘵𝘦𝘳'
 	})
 	if options == nil then return end
 	if options[1] == true then ActiveAutoFire() end
@@ -2077,8 +2220,8 @@ function SixShooterOption()
 	
 	local options = gg.multiChoice({
 		'𝘈𝘶𝘵𝘰 𝘚𝘩𝘰𝘵 - 𝘚𝘪𝘹-𝘚𝘩𝘰𝘰𝘵𝘦𝘳',
-		'𝘕𝘰 𝘙??𝘤𝘰𝘪𝘭 - 𝘚𝘪𝘹-𝘚𝘩𝘰𝘰𝘵𝘦𝘳',
-		'𝘋𝘦𝘴𝘢𝘤𝘵𝘪𝘷𝘦 𝘈𝘶𝘵𝘰 𝘍𝘪𝘳𝘦 - 𝘚𝘪𝘹-𝘚𝘩𝘰𝘰𝘵𝘦𝘳'
+		'𝘕𝘰 𝘙𝘦𝘤𝘰𝘪𝘭 - 𝘚𝘪𝘹-𝘚𝘩𝘰𝘰𝘵𝘦𝘳',
+		'𝘖𝘯/𝘖𝘧𝘧 - 𝘈𝘶𝘵𝘰 𝘍𝘪𝘳𝘦 - 𝘚𝘪𝘹-𝘚𝘩𝘰𝘰𝘵𝘦𝘳'
 	})
 	if options == nil then return end
 	if options[1] == true then ActiveAutoFire() end
@@ -2099,7 +2242,8 @@ function CubeGunRainbowAndFavOption()
 	
 	local options = gg.multiChoice({
 		'𝘔𝘢𝘵𝘦𝘳𝘪𝘢𝘭 𝘙𝘢𝘪𝘯𝘣𝘰𝘸',
-		'𝘔𝘢𝘵𝘦𝘳𝘪𝘢𝘭 𝘍𝘢𝘷 (𝘴𝘦𝘭𝘦𝘤𝘵 𝘤𝘶𝘣𝘦𝘴 𝘢𝘴 𝘳𝘢𝘪𝘯𝘣𝘰𝘸)',
+		'𝘔𝘢𝘵𝘦𝘳𝘪𝘢𝘭 𝘍𝘢𝘷  (𝘴𝘦𝘭𝘦𝘤𝘵 𝘤𝘶𝘣𝘦𝘴 𝘢𝘴 𝘳𝘢𝘪𝘯𝘣𝘰𝘸)',
+		'𝘔𝘢𝘵𝘦𝘳𝘪𝘢𝘭 𝘐𝘯𝘫𝘦𝘤𝘵𝘰𝘳  (𝘝𝘪𝘴𝘶𝘢𝘭)',
 		'𝘋𝘦𝘴𝘢𝘤𝘵𝘪𝘷𝘦 𝘈𝘯𝘥 𝘙𝘦𝘢𝘤𝘵𝘪𝘷𝘢𝘵𝘦',
 		'_𝘤𝘰𝘭𝘰𝘳𝘴_𝘭𝘪𝘴𝘵_'
 	},nil,'Select an option')
@@ -2112,11 +2256,12 @@ function CubeGunRainbowAndFavOption()
 		LoadResult(cube_results)
 		CubeGunFavSelection()
 	end
-	if options[3] == true then
+	if options[3] == true then CubeGunColorInjector() end
+	if options[4] == true then
 		isSavedResult('Cubegun random', '0', 'dword', nil, 'desactive')
 		CubegunRandom()
 	end
-	if options[4] == true then
+	if options[5] == true then
 		ShowMaterialCubeList()
 		CubeGunRainbowAndFavOption()
 	end
@@ -2128,9 +2273,9 @@ function CubeGunShapeEditOption()
 	
 	local options = gg.multiChoice({
 		'𝘚𝘩𝘢𝘱𝘦 𝘐𝘋;  '.._cube_shape_ID,
-   	 '𝘊𝘶𝘣𝘦 𝘚𝘪𝘻𝘦 (𝘯𝘰𝘳𝘮𝘢𝘭 = 1);  '.._cube_size,
+   	 '𝘊𝘶𝘣𝘦 𝘚𝘪𝘻𝘦  (𝘯𝘰𝘳𝘮𝘢𝘭 = 1);  '.._cube_size,
  	   '𝘊𝘶𝘣𝘦 𝘖𝘧𝘧𝘴𝘦𝘵 𝘟/𝘡;  '.._cube_offsetXZ,
- 	   '[*]  𝘊𝘶𝘣𝘦 𝘙𝘰𝘵𝘢𝘵𝘪𝘰𝘯 (??𝘰𝘳𝘮𝘢𝘭 = 0);  '.._cube_rotation,
+ 	   '[*]  𝘊𝘶𝘣𝘦 𝘙𝘰𝘵𝘢𝘵𝘪𝘰𝘯  (??𝘰𝘳𝘮𝘢𝘭 = 0);  '.._cube_rotation,
  	   '𝘊𝘶𝘣𝘦 𝘐𝘯𝘷𝘪𝘴𝘪𝘣𝘪𝘭𝘪𝘵𝘺',
  	   '𝘊𝘶𝘣𝘦 𝘙𝘢𝘯𝘥𝘰𝘮 𝘚𝘩𝘢𝘱𝘦'
 	}, nil, 'Press "Cancel" to return menu')
@@ -2147,7 +2292,7 @@ function ProfileTokenOption()
 	local options = gg.multiChoice({
 		'your original token:  [View_in_bytes]',
 		'token_replace:  '..token_profile_replace,
-		'Desactive Profile Token'
+		'On/Off - Profile Token'
 	},nil,'Profile Token Viewer\nNote: Activate this before the "Joined" comes out of the red cube')
 	if options == nil then ReturnMain() return end
 	if options[1] == true then ViewOriginalProfileToken() end
@@ -2205,13 +2350,20 @@ function WeaponsCrashOption()
 end
 
 function OtherWeaponSpawnOption()
+	if checkSavedResults('Spawn weapon fr') then
+		local wresults = getSavedResults('Spawn weapon fr', 'dword')
+		selected_weapon_id = wresults[1].value
+	end
+	
 	local options = gg.multiChoice({
 		'𝘚𝘦𝘭𝘦𝘤𝘵 𝘞𝘦𝘢𝘱𝘰𝘯-𝘖𝘱𝘵𝘪𝘰𝘯',
+		'𝘐𝘋𝘴;  '..selected_weapon_id,
 		'𝘚𝘱𝘢𝘸𝘯𝘞𝘦𝘢𝘱𝘰𝘯 𝘚𝘭𝘦𝘦𝘱;  '..spawnweapon_sleep
 	})
 	if options == nil then ReturnMain() return end
 	if options[1] == true then WeaponSpawnOption() end
-	if options[2] == true then AdjustWeaponSpawnSleep() end
+	if options[2] == true then WeaponSelectIDValue() end
+	if options[3] == true then AdjustWeaponSpawnSleep() end
 end
 
 function WeaponSpawnOption()
@@ -2226,15 +2378,15 @@ function WeaponSpawnOption()
         '𝘚𝘱𝘢??𝘯 𝘍𝘭𝘢𝘮𝘦𝘵𝘩𝘳𝘰𝘸𝘦𝘳',
         '𝘚𝘱𝘢𝘸𝘯 𝘊𝘶𝘣𝘦𝘎𝘶𝘯',
         '𝘚𝘱𝘢𝘸𝘯 𝘚𝘪𝘹𝘚𝘩𝘰𝘰𝘵??𝘳',
-        '𝘚𝘱𝘢𝘸𝘯 𝘋𝘰𝘶𝘣𝘭𝘦𝘚𝘪??𝘚𝘩𝘰𝘰𝘵𝘦𝘳',
+        '𝘚𝘱𝘢𝘸𝘯 𝘋𝘰𝘶𝘣??𝘦𝘚𝘪??𝘚𝘩𝘰𝘰𝘵𝘦𝘳',
         '𝘚𝘱𝘢𝘸𝘯 𝘛𝘩𝘳𝘰𝘸𝘪𝘯𝘨𝘚𝘵𝘢𝘳',
         '𝘚𝘱𝘢𝘸𝘯 𝘔𝘶𝘭𝘵𝘪𝘛𝘩𝘳𝘰𝘸𝘪𝘯𝘨𝘚𝘵𝘢𝘳',
-        '𝘚𝘱𝘢𝘸𝘯 𝘊??𝘴𝘵𝘶𝘮𝘦',
+        '??𝘱𝘢𝘸𝘯 𝘊??𝘴𝘵𝘶𝘮𝘦',
         '𝘚𝘱𝘢𝘸𝘯 𝘔𝘰𝘶𝘴𝘦𝘎𝘶𝘯',
         '𝘚𝘱𝘢𝘸𝘯 𝘎𝘳𝘰𝘸𝘵𝘩𝘎𝘶𝘯',
         '𝘚𝘱𝘢𝘸𝘯 𝘚𝘭𝘢𝘱𝘎𝘶𝘯',
         '𝘚𝘱𝘢𝘸𝘯 𝘏𝘦𝘢𝘭𝘙𝘢𝘺',
-        '[*]  𝘚𝘱𝘢𝘸𝘯 𝘓𝘢𝘴𝘦𝘳𝘗𝘰𝘪𝘯𝘵𝘦𝘳',
+        '[*]  𝘚𝘱𝘢𝘸𝘯 ??𝘢𝘴𝘦𝘳𝘗𝘰??𝘯𝘵𝘦𝘳',
         '𝘚𝘱𝘢𝘸𝘯 𝘏𝘦𝘢𝘭𝘵𝘩',
         '𝘚𝘱𝘢𝘸𝘯 𝘔𝘶𝘵𝘢𝘯𝘵',
         '𝘚𝘱𝘢𝘸𝘯 𝘕𝘪𝘯𝘫𝘢𝘙𝘶𝘯',
@@ -2404,6 +2556,140 @@ end
 -- oculus sound:  0.103
 -- oculus damage: 0.5;17;4
 
+function ThirdPersonViewWeapon()
+	local saved = isSavedResult('3rd weapon', '1', 'dword', nil, 'desative')
+	if saved == true then
+		return
+	end
+	
+	gg.clearResults()
+	gg.setRanges(gg.REGION_ANONYMOUS)
+	gg.searchNumber('1;1.5F;4F;1F;2F', gg.TYPE_DWORD)
+	gg.refineNumber('1', gg.TYPE_DWORD)
+	
+	if gg.getResultsCount() <= 0 then
+		notFoundError()
+		return
+	end
+	
+	local results = gg.getResults('500')
+	gg.editAll('0', gg.TYPE_DWORD)
+	success('Actived Third Person View Weapon', '3rd weapon', results)
+end
+
+function MagnetToPlayer_Object()
+	count_player = 1
+	
+	function AddThreeResultsAndRemove(results_count, results)
+		local primary_count = 0
+		local add_results = {}
+		
+		for _, result in ipairs(results) do
+			--print(result)
+			table.insert(add_results, {address=result.address, value=result.value, flags=gg.TYPE_FLOAT, name=tostring(count_player)})
+			if primary_count == results_count then
+				break
+			end
+			
+			primary_count = primary_count + 1
+			results[_] = nil
+		end
+		
+		--print('add values')
+		--print(add_results)
+		
+		gg.addListItems(add_results)
+		gg.clearResults()
+		gg.loadResults(results)
+		return gg.getResults('999')
+	end
+	
+	-- search self coords :
+	if checkSavedResults('Player coords') == false then
+		CustomTeleport('...', 'Player coords', true)
+	end
+	----
+		
+	gg.clearResults()
+	gg.setRanges(gg.REGION_ANONYMOUS)
+    gg.searchNumber('-3000~3000;16,777,217D;1;0.05000000075;49;1.00000003e32::95', gg.TYPE_FLOAT)
+    gg.refineNumber('-3000~3000', gg.TYPE_FLOAT)
+    
+    if gg.getResultsCount() <= 0 then
+		notFoundError()
+		return
+	end
+	
+	local results = gg.getResults('1000')
+	results = SearchCoordinates(results)
+	
+	-- distribute :
+	for x = 1, #results do
+		results = AddThreeResultsAndRemove(3, results)
+		count_player = count_player + 1
+		gg.toast('Obtained a Player | number: '..tostring(count_player))
+	end
+	
+	gg.clearResults()
+	PlayerToChaseNumber(count_player)
+end
+
+function CubeGunColorInjector()
+	ShowMaterialCubeList()
+	local ID = gg.prompt({'Material Injector ID (0 to 68)', 'Desactive - Material Injector'},{[2]=false}, {[2]='checkbox'})
+	if checkSavedResults('Cube Injector 1') then
+		if ID[2] == false then
+			isSavedResult('Cube Injector 1', ID[1], 'float')
+			isSavedResult('Cube Injector 2', ID[1], 'float')
+		else
+			local original_values1 = ''
+			local original_values2 = ''
+			
+			for x = 68, 30, -1 do
+				original_values1 = original_values1 ..';'..tostring(x)
+			end
+			for z = 29, 1, -1 do
+				original_values2 = original_values2 ..';'.. tostring(z)
+			end
+			
+			isSavedResult('Cube Injector 1', original_values1, 'float')
+			isSavedResult('Cube Injector 2', original_values1, 'float')
+			return
+		end
+	end
+		
+	
+	local function LoadResult(results)
+		gg.clearResults()
+		gg.loadResults(results)
+		gg.getResults('999')
+	end
+	
+	gg.clearResults()
+	gg.setRanges(gg.REGION_ANONYMOUS)
+    gg.searchNumber('68;67;30~64', gg.TYPE_FLOAT)
+    refineBucle(5, '30~64', 'float')
+    
+    local results1 = gg.getResults('200')
+    
+    gg.clearResults()
+    gg.searchNumber('29;28;1~25', gg.TYPE_FLOAT)
+    refineBucle(5, '25~1', 'float')
+    
+    local results2 = gg.getResults('200')
+    
+    LoadResult(results1)
+    gg.editAll(ID[1], gg.TYPE_FLOAT)
+    gg.clearResults()
+    
+    LoadResult(results2)
+    gg.editAll(ID[1], gg.TYPE_FLOAT)
+    
+    success('...', 'Cube Injector 1', results1, nil, true)
+    success('Actived Material Injector', 'Cube Injector 2', results2)
+end
+    
+
 function ProfileToken()
 	-- This hack is probably necessary. After kogama added tourists to the registered servers
 	
@@ -2443,6 +2729,7 @@ end
 
 function ProfileID_LevelUp()
 	-- search format:  -1;level;profile_id;259,000~262,000;-3780~-3700;1
+	local self_level = gg.prompt({'Set your current level [1; 45]'}, {1}, {'number'})
 	local level_value = '45'
 	local profile_changer = '40000000'
 	
@@ -2466,7 +2753,7 @@ function ProfileID_LevelUp()
 	
 	gg.clearResults()
 	gg.setRanges(gg.REGION_ANONYMOUS)
-	gg.searchNumber('-1;1~45;100,000~1,147,000;259,000~262,000;-3780~-3700;1', gg.TYPE_DWORD)
+	gg.searchNumber('-1;'..self_level[1]..';100,000~1,147,000,000;259,000~262,000;-3780~-3700;1', gg.TYPE_DWORD)
 	local primary_results = gg.getResults('100')
 	
 	if gg.getResultsCount() <= 0 then
@@ -2476,12 +2763,12 @@ function ProfileID_LevelUp()
 	
 	-- level value
 	gg.refineNumber('1~45', gg.TYPE_DWORD)
-	local results1 = gg.getResults('5')
+	local results1 = gg.getResults('10')
 	gg.editAll(level_value, gg.TYPE_DWORD)
 	LoadResult(primary_results, 'Level value', results1)
 	
 	-- profile id
-	gg.refineNumber('100,000~1,147,000', gg.TYPE_DWORD)
+	gg.refineNumber('100,000~1,147,000,000', gg.TYPE_DWORD)
 	local results2 = gg.getResults('2')
 	previous_profile_id = results2[1].value
 	gg.editAll(profile_changer, gg.TYPE_DWORD)
@@ -2492,7 +2779,7 @@ function ProfileID_LevelUp()
 end
 
 function NoOculusDamage()
-	local saved = isSavedResult('Oculus damage', '0.5;17;4', 'float', nil, 'desactive')
+	local saved = isSavedResult('Oculus damage', '0.00999999978;0.5;4', 'float', nil, 'desactive')
 	if saved == true then
 		return
 	end
@@ -3241,7 +3528,7 @@ function PlayerMovesValue(values, func_name, show_message, NoEdit, maintain_jump
 	end
 	
 	if checkSavedResults('Speed') then
-		speed_search = getSavedResultValue('Speed', 'float')
+		speed_search = getSavedResultValue('Speed', 'float')[1].value
 	end
 	
 	gg.clearResults()
@@ -3285,6 +3572,10 @@ function AntiLagRadius(action_type)
 end
 
 function SpeedJetPack()
+	local scan_values = '0.3~0.5;900~1750;2;300~500::'
+	local refine_values = '900~1750'
+	local saved_jetpack_propeller = false
+	
 	local speed_value = gg.prompt(
  		{'Speed Amount (1 = normal) [1; 24]'},
 	 	{8, -76}, {'number'}
@@ -3296,19 +3587,46 @@ function SpeedJetPack()
 		return
 	end
 	
+	if checkSavedResults('Inf jetpack') == false then
+		scan_values = '6;900~1750;2;300~500::'
+		refine_values = '6;900~1750'
+		saved_jetpack_propeller = true
+	end
+	
+	local function LoadResult(results, save_name, refined_results)
+		success('Activing..', save_name, refined_results)
+		gg.sleep('100')
+		gg.clearResults()
+		gg.loadResults(results)
+		gg.getResults('10')
+	end
+	
 	gg.clearResults()
 	gg.setRanges(gg.REGION_ANONYMOUS)
-	gg.searchNumber('0.3~0.5;900~1750;2;300~500::',gg.TYPE_FLOAT)
-	gg.refineNumber('900~1750', gg.TYPE_FLOAT)
+	gg.searchNumber(scan_values, gg.TYPE_FLOAT)
+	gg.refineNumber(refine_values, gg.TYPE_FLOAT)
+	local primary_results = gg.getResults('400')
 	
 	if gg.getResultsCount() <= 0 then
 		notFoundError('Jetpack speed', speedjetpack, 'float')
 		return
 	end
 	
-	local results = gg.getResults('100')
+	-- speed :
+	gg.refineNumber('900~1750', gg.TYPE_FLOAT)
+	local results1 = gg.getResults('100')
 	gg.editAll(speedjetpack, gg.TYPE_FLOAT)
-	success('Actived JetPack Speed Multiplier', 'Jetpack speed', results)
+	LoadResult(primary_results, 'Jetpack speed', results1)
+	
+	if saved_jetpack_propeller == true then
+		 -- jetpack propeller :
+		gg.refineNumber('6', gg.TYPE_FLOAT)
+		local results2 = gg.getResults('100')
+		LoadResult(primary_results, 'Inf jetpack', results2)
+	end
+	
+	gg.clearResults()
+	gg.toast('Actived JetPack Speed Multiplier')
 end
 
 function NoFireTower()
@@ -3501,8 +3819,8 @@ function ImpulseRangeSettings()
 	
 	gg.clearResults()
 	gg.setRanges(gg.REGION_ANONYMOUS)
-	gg.searchNumber('1600;1500;25;1.20000004768', gg.TYPE_FLOAT)
-	gg.refineNumber('25;1.20000004768', gg.TYPE_FLOAT)
+	gg.searchNumber('1600;1500;25;1.20000004768;15', gg.TYPE_FLOAT)
+	gg.refineNumber('1600;25;1.20000004768;15', gg.TYPE_FLOAT)
 	local primary_results = gg.getResults('100')
 	
 	local function LoadResult(results, save_name, refined_results)
@@ -3528,6 +3846,11 @@ function ImpulseRangeSettings()
 	gg.refineNumber('1600', gg.TYPE_FLOAT)
 	local results3 = gg.getResults('40')
 	LoadResult(primary_results, 'Impulse Gun Self Impulse', results3)
+	
+	-- impulse frencuency
+	gg.refineNumber('15', gg.TYPE_FLOAT)
+	local results4 = gg.getResults('40')
+	LoadResult(primary_results, 'Impulse Gun Frecuency', results4)
 	
 	gg.sleep('200')
 	gg.clearResults()
@@ -3794,9 +4117,10 @@ function NoEquipWeapons()
 end
 
 function ReviveMode()
-	local function isEqualResultDead(results, equal_address)
+	local function isEqualResultDead(equal_address)
 		local found_value = false
 		while true do
+			local results = gg.getResults('999')
 			for _, nwresult in ipairs(results) do
 				if nwresult.address == equal_address and nwresult.value == 0 then
 					found_value = true
@@ -3835,7 +4159,7 @@ function ReviveMode()
 				
 				-- check if the player has already respawned 
 				print('laaaa')
-				local rDead_player = isEqualResultDead(new_results, result_address)
+				local rDead_player = isEqualResultDead(result_address)
 				if rDead_player == true then
 					-- Coordinates where it reappeared
 					local spawn_coords = getSavedResults('Player coords', 'float', 2)
@@ -3961,7 +4285,8 @@ function InfiniteHealthNoControls() -- inf health shitty
 	gg.refineNumber('1', gg.TYPE_DWORD)
 	
 	if gg.getResultsCount() <= 0 then
-		notFoundError()
+		gg.toast('No found results. Restart the game to fix it!')
+		return
 	end
 	
 	local results2 = gg.getResults('100')
@@ -4486,7 +4811,7 @@ function NoFall()
 end
 
 function CustomTeleport(coords, func_name, NoEdit)
-	if NoEdit == true then
+	if NoEdit ~= true then
 		local saved = isSavedResult('Player coords', coords, 'float')
 		if saved == true then
 			return
@@ -4506,13 +4831,11 @@ function CustomTeleport(coords, func_name, NoEdit)
     local results = gg.getResults('300')
     results =  SearchCoordinates(results)
     
-    if NoEdit == true then
+    if NoEdit ~= true then
 		gg.editAll(coords, gg.TYPE_FLOAT)
 	end
 	
-    if checkSavedResults('Player coords') == false then
-		success('Teleported to '..func_name, 'Player coords', results)
-	end
+	success('Teleported to '..func_name, 'Player coords', results)
 end
 
 function MapTeleport2(xyz, result_name)
@@ -4608,19 +4931,55 @@ function JetpackAnimation()
 end
 
 function InfiniteJetpack()
+	local scan_values = '0.3~0.5;6;2;300~500::'
+	local refine_values = '6'
+	local saved_jetpack_speed = false
+	
+	if checkSavedResults('Inf jetpack') then
+		OptionHackActivation(jetpack_nooverheat_actived, 'Inf jetpack', 'float', '200', '6')
+		return
+	end
+	
+	local function LoadResult(results, save_name, refined_results)
+		success('Activing..', save_name, refined_results)
+		gg.sleep('100')
+		gg.clearResults()
+		gg.loadResults(results)
+		gg.getResults('10')
+	end
+	
+	if checkSavedResults('Jetpack speed') == false then
+		scan_values = '6;900~1750;2::'
+		refine_values = '6;900~1750'
+		saved_jetpack_speed = false
+	end
+	
 	gg.clearResults()
 	gg.setRanges(gg.REGION_ANONYMOUS)
-	gg.searchNumber('0.3~0.5;6;2;300~500::', gg.TYPE_FLOAT)
-	gg.refineNumber('6', gg.TYPE_FLOAT)
+	gg.searchNumber(scan_values, gg.TYPE_FLOAT)
+	gg.refineNumber(refine_values, gg.TYPE_FLOAT)
+	local primary_results = gg.getResults('400')
 	
 	if gg.getResultsCount() <= 0 then
 		notFoundError('Inf jetpack', '6', 'float')
 		return
 	end
 	
-	local results = gg.getResults('500')
+	-- jetpack propeller
+	gg.refineNumber('6', gg.TYPE_FLOAT)
+	local results1 = gg.getResults('100')
 	gg.editAll('200', gg.TYPE_FLOAT)
-	success('Actived Infinite Jetpack', 'Inf jetpack', results)
+	LoadResult(primary_results, 'Inf jetpack', results1)
+	
+	if saved_jetpack_speed == false then
+		-- jetpack speed
+		gg.refineNumber('900~1750', gg.TYPE_FLOAT)
+		local results2 = gg.getResults('100')
+		LoadResult(primary_results, 'Jetpack speed', results2)
+	end
+	
+	gg.clearResults()
+	gg.toast('Actived Infinite Jetpack')
 end
 
 function HealRayRange()
@@ -4999,7 +5358,7 @@ function CubegunRandom()
 
 	if gg.getResultsCount() <= 0 then
 		notFoundError('Cubegun random', '0', 'dword')
-		return
+		--return
 	end
 
 	local results1 = gg.getResults('100')
@@ -5547,7 +5906,7 @@ function RemoveCubegunsXYZ()
 	if checkSavedResults('Avatar Radius third') then
 		local avtradius = getSavedResults('Avatar Radius third')
 		-- change name
-		success('...', 'Avatar Radius second', avtresults, nil, true)
+		success('...', 'Avatar Radius second', avtradius, nil, true)
 	end
 	
 	local saved = isSavedResult('Avatar Radius second', playerRadius[1]..';'..playerRadius[2],  'float',  playerRadius[3], nil, playerRadius[5], playerRadius[6])
