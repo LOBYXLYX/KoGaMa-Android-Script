@@ -1,4 +1,5 @@
 -- LOBYX | Patito
+-- patched in 2024/5/16 | AÑO/MES/DIA
 Dmenu = 0
 
 
@@ -15,6 +16,7 @@ high_jump_value = '4' -- float
 spawnweapon_sleep = '10000'
 saved_player_coordinates = '???'
 cube_radius_selection = 'REMOVING'
+
 weapondamage_values = 'DAMAGE: ' -- revert
 dialog_interval_coords = '300'
 previous_profile_id = ''
@@ -22,6 +24,8 @@ token_profile_replace = '???'
 original_profile_token = ''
 selected_weapon_id = '0'
 
+custom_radius_duration = {bool = false, duration = false}
+noweapon_sleep = {bool = false}
 radius_belowplayer = {bool = false}
 radiussimple_disable_duration = {bool = false}
 radiussimple_antilag = {bool = false}
@@ -47,6 +51,7 @@ swordrapifire_actived = 2
 cubegunrapidfire_actived = 2
 gamewalls_actived = 2
 jetpack_nooverheat_actived = 2
+antigravity_actived = 2
 
 ----------------------------------------
 
@@ -192,9 +197,12 @@ function notFoundError(result_name, change_value, type, _return, _get, radius_sl
     
     	elseif result_name == 'Spawn weapon fr' then
     		gg.editAll(change_value, ggTYPE)
-    		success('Spawned weapon, touch another weapon to activate (you have 10 seconds!)')
-    		gg.sleep(spawnweapon_sleep)
-    		gg.setValues(results2)
+    		selected_weapon_id = change_value
+    		if noweapon_sleep.bool ~= true then
+				success('Spawned weapon, touch another weapon to activate (you have 10 seconds!)')
+    			gg.sleep(spawnweapon_sleep)
+    			gg.setValues(results2)
+    		end
     	else
     		gg.editAll(change_value, ggTYPE)
     		if action_result == 'desactive' then
@@ -262,8 +270,8 @@ function InfiniteHealthOptions()
 		gg.clearResults()
 		gg.setRanges(gg.REGION_ANONYMOUS)
 
-		gg.searchNumber('100;100F;1;257,000~265,000', gg.TYPE_DWORD)
-		gg.refineNumber('1', gg.TYPE_DWORD)
+		gg.searchNumber('100;100F;1~9;258,000~263,000::215', gg.TYPE_DWORD)
+		gg.refineNumber('1~9', gg.TYPE_DWORD)
 	
 		if gg.getResultsCount() <= 0 then
 			notFoundError()
@@ -646,7 +654,6 @@ function SearchCoordinates(results, results_count)
 	
 	local function isValueInList(value)
         for _, list_value in pairs(coords_results_memory) do
-        	print(value, list_value)
             if value == list_value then
                 return true
             end
@@ -665,11 +672,39 @@ function SearchCoordinates(results, results_count)
 	return gg.getResults(results_count)
 end
 
+function GetSelectedPickups(results)
+	local new_results = {}
+	local weapon_ids = {
+		mutant = 7,
+		mousepack = 63,
+		growpack = 64
+	}
+	
+	local function isValueInList(value)
+        for _, list_value in pairs(weapon_ids) do
+            if value == list_value then
+                return true
+            end
+        end
+        return false
+    end
+	
+	for i, result in ipairs(results) do
+    	if not isValueInList(result.value) then
+    		table.insert(new_results, {address = result.address, value = result.value, flags = gg.TYPE_DWORD})
+		end
+	end
+	
+	gg.clearResults()
+	gg.loadResults(new_results)
+	return gg.getResults('999')
+end
+
 function SearchWeaponFire(results)
     local weapons = {
         bazooka = 30,
         revolver = 500,
-        centergun = 240,
+        centergun = 150,
         shotgun = 350,
         -- railgun = 60, my error
         shuriken_and_dual = 100,
@@ -1147,13 +1182,27 @@ function AdjustRadiusWeaponSleep()
 end
 
 function AdjustWeaponSpawnSleep()
-	spawnweapon_sleep = gg.prompt({'Sleep amount (seconds) [6; 120]'}, {8}, {'number'})[1]..'000'
+	local adjustsleep = gg.prompt({'Sleep amount (seconds) [6; 120]', 'No Weapon Sleep'}, {8, false}, {'number', 'checkbox'})
+	noweapon_sleep.bool = adjustsleep[2]
+	spawnweapon_sleep = adjustsleep[1]..'000'
 	OtherWeaponSpawnOption()
 end
 
 function AdjustDialogViewerMicroSeconds()
 	dialog_interval_coords = gg.prompt({'Set Dialog Interval in micro seconds (1000 = 1 second)'}, {500}, {'number'})[1]
 	PlayerCoordsViewerOption()
+end
+
+function AdjustRadiusDurationSimple()
+	local adjustsleep = gg.prompt({'Custom Duration (seconds) [4; 180]', 'Desactive - Custom Radius Duration'}, {10, false}, {'number', 'checkbox'})
+	custom_radius_duration.duration = adjustsleep[1]..'000'
+	if adjustsleep[2] == true then
+		custom_radius_duration.bool = false
+	else
+		custom_radius_duration.bool = true
+	end
+	
+	AvatarRadiusValuesOption()
 end
 
 function ProfileTokenChange()
@@ -1181,6 +1230,14 @@ function CustomResolutionFloatSimple()
 	local results = getSavedResults('Resul changer', 'float')
 	local second_value = results[2].value
 	local minimum_value = 2.0
+	
+	if results[2].value ~= 1440 then
+		-- Avoid altered changes :
+		for i, result in ipairs(results) do
+			result.value = '1440'
+		end
+	end
+	
 	
 	local value = gg.prompt({'Set Resulution Size (normal = 2.0)'}, {2.0}, {'number'})[1]
 	-- multplier value
@@ -1323,6 +1380,24 @@ function InfiniteHealthExecuteOption()
 	else
 		InfiniteHealthType()
 	end
+end
+
+function ChangeSavedResultName(result_name, change_to, type)
+	local results = getSavedResults(result_name, type)
+	if results == false then
+		print('FAILED TO CHANGE NAME')
+		return
+	end
+	
+	-- remove
+	for i, result in ipairs(results) do
+		result.name = nil
+	end
+	
+	gg.removeListItems(results)
+	
+	-- add
+	success('...', change_to, results, nil, true)
 end
 
 function HealthPlayerSetID(interaction_id, message) -- I think there is no point in doing this.
@@ -1629,31 +1704,32 @@ end
 
 function PlayerOption()
 	local options = gg.multiChoice({
-		'𝘈𝘷𝘢𝘵𝘢𝘳 𝘔𝘰𝘥𝘪𝘧𝘪𝘦𝘳',
+		'[*]  𝘈𝘷𝘢𝘵𝘢𝘳 𝘔𝘰𝘥𝘪𝘧𝘪𝘦𝘳',
 		'𝘐𝘕𝘍. 𝘏𝘦𝘢𝘭𝘵𝘩',
-		'𝘈𝘭𝘭 𝘉𝘭𝘰𝘤𝘬𝘴 𝘋𝘦𝘴𝘵𝘳𝘶𝘤𝘵𝘪𝘣𝘭𝘦',
+		'[*]  𝘈𝘭𝘭 𝘉𝘭𝘰𝘤𝘬𝘴 𝘋𝘦𝘴𝘵𝘳𝘶𝘤𝘵𝘪𝘣𝘭𝘦',
 		'𝘐𝘕𝘍. 𝘈𝘷𝘢𝘵𝘢𝘳 𝘔𝘰𝘥𝘪𝘧𝘪𝘦𝘳 𝘗𝘢𝘤𝘬𝘨𝘦𝘴',
 		'𝘕𝘰 𝘍𝘢𝘭𝘭',
 		'𝘈𝘷𝘢𝘵𝘢𝘳 𝘙𝘢𝘥𝘪𝘶𝘴',
-		'𝘈𝘷𝘢𝘵𝘢𝘳 𝘙𝘢𝘥𝘪𝘶𝘴  (𝘴𝘪𝘮𝘱𝘭𝘦)',
+		'[*]  𝘈𝘷𝘢𝘵𝘢𝘳 𝘙𝘢𝘥𝘪𝘶𝘴  (𝘴𝘪𝘮𝘱𝘭𝘦)',
 		'𝘕𝘰𝘤𝘭𝘪𝘱',
 		'𝘚𝘱𝘦𝘦𝘥 𝘉𝘰𝘰𝘴𝘵 𝘔𝘶𝘭𝘵𝘪𝘱𝘭𝘪𝘦𝘳' ,
-		'𝘚𝘱𝘢𝘸𝘯 𝘗𝘳𝘰𝘵𝘦𝘤𝘵𝘪𝘰𝘯',
-		'𝘐𝘮𝘱𝘶𝘭𝘴𝘦 𝘍𝘳𝘦𝘦𝘻𝘦  (𝘞𝘦𝘢𝘱𝘰𝘯)',
-		'𝘚𝘦𝘭𝘧 𝘏𝘦𝘢𝘭 + 𝘈𝘭𝘭 𝘉𝘋',
+		'[*]  𝘚𝘱𝘢𝘸𝘯 𝘗𝘳𝘰𝘵𝘦𝘤𝘵𝘪𝘰𝘯',
+		'[*]  𝘚𝘦𝘭𝘧 𝘏𝘦𝘢𝘭 + 𝘈𝘭𝘭 𝘉𝘋',
 		'[*]  𝘕𝘦𝘷𝘦𝘳 𝘊𝘳𝘶𝘴𝘩𝘦𝘥',
 		'𝘎𝘪𝘢𝘯𝘵 𝘈𝘷𝘢𝘵𝘢𝘳 + 𝘔𝘶𝘭𝘵𝘪𝘱𝘭𝘪𝘦𝘳',
 		'𝘕𝘰 𝘐𝘮𝘱𝘶𝘭𝘴𝘦',
 		'𝘙𝘦𝘷𝘪𝘷𝘦 𝘔𝘰𝘥𝘦',
-		'𝘐𝘯𝘷𝘪𝘴𝘪𝘣𝘪𝘭𝘪𝘵𝘺 (𝘷𝘪𝘴𝘪𝘣𝘭𝘦 𝘵𝘰 𝘰𝘵𝘩𝘦𝘳𝘴 𝘱𝘭𝘢𝘺𝘦𝘳𝘴)',
+		'𝘐𝘯𝘷𝘪𝘴𝘪𝘣𝘪𝘭𝘪𝘵𝘺  (𝘷𝘪𝘴𝘪𝘣𝘭𝘦 𝘵𝘰 𝘰𝘵𝘩𝘦𝘳𝘴 𝘱𝘭𝘢𝘺𝘦𝘳𝘴)',
 		'𝘈𝘯𝘵𝘪-𝘐𝘮𝘱𝘢𝘤𝘵',
 		'[*]  𝘞𝘦𝘢𝘱𝘰𝘯𝘴 𝘞𝘪𝘵𝘩 𝘎𝘳𝘰𝘸𝘵𝘩',
-		'𝘚𝘩𝘰𝘸 𝘌𝘯𝘦𝘮𝘺 𝘐𝘤𝘰𝘯 𝘛𝘩𝘳𝘰𝘶𝘨𝘩 𝘞𝘢𝘭𝘭𝘴 (𝘭𝘪𝘬𝘦 𝘌𝘚𝘗)',
+		'𝘚𝘩𝘰𝘸 𝘌𝘯𝘦𝘮𝘺 𝘐𝘤𝘰𝘯 𝘛𝘩𝘳𝘰𝘶𝘨𝘩 𝘞𝘢𝘭𝘭𝘴  (𝘭𝘪𝘬𝘦 𝘌𝘚𝘗)',
+		'𝘕𝘰 𝘊𝘰𝘭𝘭𝘦𝘤𝘵 𝘗𝘪𝘤𝘬𝘶𝘱𝘴  (𝘎𝘳𝘰𝘸𝘗𝘪𝘭𝘭,𝘔𝘰𝘶𝘴𝘗𝘪𝘭𝘭,𝘔𝘶𝘵𝘢𝘯𝘵)',
 		'𝘕𝘰 𝘌𝘲𝘶𝘪𝘱 𝘞𝘦𝘢𝘱𝘰𝘯𝘴',
-		'𝘔𝘢𝘨𝘯𝘦𝘵 𝘵𝘰 𝘗𝘭𝘢𝘺𝘦𝘳 / 𝘖𝘣𝘫𝘦𝘤𝘵',
+		'[*]  𝘔𝘢𝘨𝘯𝘦𝘵 𝘵𝘰 𝘗𝘭𝘢𝘺𝘦𝘳 / 𝘖𝘣𝘫𝘦𝘤𝘵',
 		'𝘈𝘷𝘢𝘵𝘢𝘳 𝘏𝘪𝘵𝘣𝘰𝘹 - 𝘙𝘢𝘯𝘨𝘦',
 		'𝘛𝘦𝘭𝘦𝘱𝘰𝘳𝘵',
-		'𝘈𝘷𝘢𝘵𝘢𝘳 𝘈𝘯𝘪𝘮𝘢𝘵𝘪𝘰𝘯𝘴'
+		'𝘈𝘷𝘢𝘵𝘢𝘳 𝘈𝘯𝘪𝘮𝘢𝘵𝘪𝘰𝘯𝘴',
+		'𝘙𝘦𝘨𝘦𝘯𝘦𝘳𝘢𝘵𝘦 𝘏𝘦𝘢𝘭𝘵𝘩 + 𝘙𝘦𝘷𝘪𝘷𝘦 𝘔𝘰𝘥𝘦  (𝘉𝘌𝘛𝘈)'
 	})
 	
 	if options == nil then ReturnMain() return end
@@ -1667,21 +1743,22 @@ function PlayerOption()
 	if options[8] == true then NoclipV2() end
 	if options[9] == true then SpeedPlayer() end
 	if options[10] == true then PlayerEffect('17') end
-	if options[11] == true then WeaponsCrashOption() end
-	if options[12] == true then PlayerEffect('18') end
-	if options[13] == true then NeverCrushed() end
-	if options[14] == true then PlayerSizeAdvanced() end
-	if options[15] == true then NoImpulsePlayer() end
-	if options[16] == true then ReviveMode() end
-	if options[17] == true then HealthPlayerSetID('5', 'Invisiblity') end
-	if options[18] == true then AntiImpactPlayer() end
-	if options[19] == true then WeaponsWithGrowth() end
-	if options[20] == true then GameWallsInteraction('9999', 'Show Enemy Icon Through Walls', true) end
-	if options[21] == true then NoEquipWeapons() end
+	if options[11] == true then PlayerEffect('18') end
+	if options[12] == true then NeverCrushed() end
+	if options[13] == true then PlayerSizeAdvanced() end
+	if options[14] == true then NoImpulsePlayer() end
+	if options[15] == true then ReviveMode() end
+	if options[16] == true then HealthPlayerSetID('5', 'Invisiblity') end
+	if options[17] == true then AntiImpactPlayer() end
+	if options[18] == true then WeaponsWithGrowth() end
+	if options[19] == true then GameWallsInteraction('9999', 'Show Enemy Icon Through Walls', true) end
+	if options[20] == true then NoEquipWeapons() end
+	if options[21] == true then NoCollectPickups() end
 	if options[22] == true then MagnetToPlayer_Object() end
 	if options[23] == true then AvatarHitboxRange() end
 	if options[24] == true then TeleportOption() end
 	if options[25] == true then AnimationsOption() end
+	if options[26] == true then RegenerateHealthWithReviveMode() end
 end
 
 function PhysLogicOption()
@@ -1693,6 +1770,7 @@ function PhysLogicOption()
  	   '𝘈𝘶𝘵𝘰 𝘑𝘶𝘮𝘱',
  	   '𝘔𝘰𝘰𝘯 𝘑𝘶𝘮𝘱',
    	 '𝘞𝘰𝘳𝘭𝘥 𝘛𝘳𝘢𝘮𝘱𝘰𝘭𝘪𝘯𝘦',
+   	 '𝘈𝘯𝘵𝘪-𝘎𝘳𝘢𝘷𝘪𝘵𝘺  (𝘕𝘰 𝘑𝘶𝘮𝘱)',
    	 '𝘗𝘭𝘢𝘺𝘦𝘳 𝘊𝘰𝘰𝘳𝘥𝘴  (𝘦𝘹𝘱𝘦𝘳𝘪𝘮𝘦𝘯𝘵𝘢𝘭)'
 	})
 	if options == nil then ReturnMain() return end
@@ -1703,7 +1781,8 @@ function PhysLogicOption()
 	if options[5] == true then AutoJump() end
 	if options[6] == true then MoonJump() end
 	if options[7] == true then SuperTrampoline() end
-	if options[8] == true then ViewerPlayerCoordinates() end
+	if options[8] == true then AntiGravity() end
+	if options[9] == true then ViewerPlayerCoordinates() end
 end
 	
 
@@ -1800,6 +1879,13 @@ function PlayerCoordsViewerOption()
 		return
 	end
 	
+	for x, list_ in ipairs(coords_list) do
+		if list_.address == nil and x == 3 then
+			gg.alert('FAILED: Could not display coordinates')
+			return
+		end
+	end
+	
 	-- create coords variable
 	local coordX = coords_list[1].value
 	local coordY = coords_list[2].value
@@ -1828,6 +1914,12 @@ function AvatarRadiusValuesOption() -- simple
 	local options_num = {}
 	local radius_edit = {}
 	local minimum_duration = '2800'
+	local option_CRduration = 'Custom Radius Duration'
+	local rbbtp_actived = 'OFF'
+	
+	if custom_radius_duration.bool ~= false then
+		option_CRduration = 'Custom Radius Duration;  '..custom_radius_duration.duration
+	end
 	
 	-- check if the avatar radius is Actived
 	if checkSavedResults('Avatar Radius second') then
@@ -1839,9 +1931,30 @@ function AvatarRadiusValuesOption() -- simple
 		end
 	end
 	
-	for i = 5, 70, 5 do
+	print(custom_radius_duration)
+	
+	-- for 5x1
+	for i = 5, 20, 5 do
 		local radius_string = 'radius = '..tostring(i)..' : '..tostring(i / 2)
 		local radius_edd = tostring(i)..';'..tostring(i / 2)
+		
+		table.insert(options_num, radius_string)
+		table.insert(radius_edit, {radius=radius_edd})
+	end
+	
+	-- for 10x1
+	for _ = 25, 100, 10 do
+		local radius_string = 'radius = '..tostring(_)..' : '..tostring(_ / 2)
+		local radius_edd = tostring(_)..';'..tostring(_ / 2)
+		
+		table.insert(options_num, radius_string)
+		table.insert(radius_edit, {radius=radius_edd})
+	end
+	
+	-- for 15x1
+	for x = 110, 155, 15 do
+		local radius_string = 'radius = '..tostring(x)..' : '..tostring(x / 2)
+		local radius_edd = tostring(x)..';'..tostring(x / 2)
 		
 		table.insert(options_num, radius_string)
 		table.insert(radius_edit, {radius=radius_edd})
@@ -1851,14 +1964,20 @@ function AvatarRadiusValuesOption() -- simple
 	-- others
 	table.insert(options_num, 'Anti Radius Lag')
 	table.insert(options_num, 'Disable Radius Duration')
-	-- set avatar radius Pos Y | Type (17)
+	-- set avatar radius Pos Y | Type (21)
 	table.insert(options_num, 'Remove blocks below the player')
-	-- add Avatar Radius Auto : (18)
+	-- add Avatar Radius Auto : (22)
 	table.insert(options_num, '[*]  Avatar Radius Auto')
+	-- add custom radius duration : (23)
+	table.insert(options_num, option_CRduration)
 	--print(radius_belowplayer, radiussimple_antilag, radiussimple_disable_duration)
 	
-	local options = gg.multiChoice(options_num,nil,'radius = XZ/Y  Size')
-	--print(options)
+	--print(options_num)
+	if radius_belowplayer.bool == true then
+		rbbtp_actived = 'ON'
+	end
+	
+	local options = gg.multiChoice(options_num,nil,'radius = XY/Z Size\nRemove Blocks BTP: '..rbbtp_actived)
 	
 	if options == nil then ReturnMain() return end
 	for value, option in pairs(radius_edit) do
@@ -1874,18 +1993,24 @@ function AvatarRadiusValuesOption() -- simple
 				
 				max_radius_duration = string.gsub(tostring(max_radius_duration), '%.0', '')
 				print(max_radius_duration)
+				-- if custom radius is Actived :
+				if custom_radius_duration.bool ~= false then
+					max_radius_duration = custom_radius_duration.duration
+				end
+				
 				RemoveCubegunsSimple(radius_edit[rnum]['radius'], max_radius_duration)
 				
-			elseif options[15] == true then
+			elseif options[17] == true then
 				SecondOptionHackActivation(radiussimple_disable_duration)
 				return AvatarRadiusValuesOption()				
-			elseif options[16] == true then
+			elseif options[18] == true then
 				SecondOptionHackActivation(radiussimple_antilag)
 				return AvatarRadiusValuesOption()
-			elseif options[17] == true then
+			elseif options[19] == true then
 				SecondOptionHackActivation(radius_belowplayer)
 				return AvatarRadiusValuesOption()
-			elseif options[18] == true then AutoRemoveCubes() end
+			elseif options[20] == true then AutoRemoveCubes()
+			elseif options[21] == true then AdjustRadiusDurationSimple() end
 		end
 	end
 end
@@ -2049,7 +2174,8 @@ function CameraOption()
   	  '𝘞𝘦𝘢𝘱𝘰𝘯 𝘊𝘢𝘮𝘦𝘳𝘢 𝘏𝘦𝘪𝘨𝘩𝘵',
   	  '𝘕𝘰 𝘊𝘢𝘮𝘦𝘳𝘢 𝘊𝘰𝘭𝘭𝘪𝘴𝘪𝘰𝘯',
   	  '𝘞𝘦𝘢𝘱𝘰𝘯 𝘚𝘦𝘯𝘴𝘪𝘷𝘪𝘵𝘺',
-  	  '𝘛𝘩𝘪𝘳𝘥 𝘗𝘦𝘳𝘴𝘰𝘯 𝘝𝘪𝘦𝘸  (𝘞𝘦𝘢𝘱𝘰𝘯)'
+  	  '𝘛𝘩𝘪𝘳𝘥 𝘗𝘦𝘳𝘴𝘰𝘯 𝘝𝘪𝘦𝘸',
+  	  '𝘍𝘪𝘳𝘴𝘵 𝘗𝘦𝘳𝘴𝘰𝘯 𝘝𝘪𝘦𝘸'
 	})
 	if options == nil then ReturnMain() return end
 	if options[1] == true then Camera() end
@@ -2058,6 +2184,8 @@ function CameraOption()
 	if options[4] == true then WPCameraHeight() end
 	if options[5] == true then NoCameraCollision() end
 	if options[6] == true then PlayerSensivity() end
+	if options[7] == true then ThirdPersonViewWeapon() end
+	if options[8] == true then FirstPersonView() end
 end
 
 function SensivityOption()
@@ -2092,13 +2220,23 @@ function BazookaDamageRadiusOption()
 	end
 end
 
+function RapidCubeGunOption()
+	local options = gg.multiChoice({
+		'[*]  𝘙𝘢𝘱𝘪𝘥 𝘍𝘪𝘳𝘦 - 𝘊𝘶𝘣𝘦 𝘎𝘶𝘯',
+    	'𝘙𝘢𝘱𝘪𝘥 𝘙𝘦𝘮𝘰𝘷𝘦 - 𝘊𝘶𝘣𝘦 𝘎𝘶𝘯'
+    },nil,'Select a Option')
+    if options == nil then WeaponsOption() return end
+    if options[1] == true then CubeGunRapidFire() end
+    if options[2] == true then CubegunDeleteSpeed() end
+end
+
 function ImpulseGunRangeRadiusOption()
 	local options = gg.multiChoice({
    	 '𝘙𝘢𝘯𝘨𝘦  (𝘯𝘰𝘳𝘮𝘢𝘭 = 25);  '.._impulsegun_range,
   	  '𝘙𝘢𝘥𝘪𝘶𝘴  (𝘯𝘰𝘳𝘮𝘢𝘭 = 1.2);  '.._impulsegun_radius,
   	  '𝘕𝘰 𝘐𝘮𝘱𝘶𝘭𝘴𝘦 𝘠𝘰𝘶𝘳𝘴𝘦𝘭𝘧',
   	  '𝘕𝘰 𝘐𝘮𝘱𝘶𝘭𝘴𝘦 𝘍𝘳𝘦𝘲𝘶𝘦𝘯𝘤𝘺',
-  	  '𝘖𝘯/𝘖𝘧𝘧 - 𝘐𝘮𝘱𝘶𝘭𝘴𝘦 𝘎𝘶𝘯 - 𝘙𝘢𝘯𝘨𝘦'
+  	  '𝘖𝘯/𝘖𝘧𝘧 - 𝘐𝘮𝘱𝘶??𝘴𝘦 𝘎𝘶𝘯 - 𝘙𝘢𝘯𝘨𝘦'
 	}, nil, 'Impulse - Settings')
 	if options == nil then ReturnMain() return end
 	if options[1] == true then ImpulseGunRangeValue() end
@@ -2120,7 +2258,7 @@ function PlayerToChaseNumber(results_number) -- DEVELOPING
             local nmp = getSavedResults(tostring(i), 'float')
             if nmp ~= false and new_results[nmp[1].name] == nil then
                 print(nmp[1].name)
-                new_results[nmp[1].name] = nmp.name
+                new_results[nmp[1].name] = nmp[1].name
             end
         end
         print(new_results)
@@ -2133,8 +2271,9 @@ end
 
 function WeaponsOption()
     local options = gg.multiChoice({
-    	'𝘐𝘕𝘍. 𝘈𝘮𝘮𝘰  (𝘈𝘓𝘓 𝘞𝘦𝘢𝘱𝘰𝘯𝘴)',
+    	'[*]  𝘐𝘕𝘍. 𝘈𝘮𝘮𝘰  (𝘈𝘓𝘓 𝘞𝘦𝘢𝘱𝘰𝘯𝘴)',
     	'𝘞𝘦𝘢𝘱𝘰𝘯 𝘚𝘱𝘢𝘸𝘯  (𝘛𝘰𝘶𝘤𝘩 𝘢𝘯𝘰𝘵𝘩𝘦𝘳 𝘸𝘦𝘢𝘱𝘰𝘯 𝘵𝘰 𝘳𝘦𝘴𝘱𝘢𝘸𝘯)',
+    	'𝘐𝘮𝘱𝘶𝘭𝘴𝘦 𝘒𝘪𝘤𝘬',
    	 '𝘉𝘶𝘭𝘭𝘦𝘵  (𝘚𝘱𝘦𝘦𝘥,𝘙𝘢𝘯𝘨𝘦)',
   	  '𝘙𝘢𝘱𝘪𝘥 𝘍𝘪𝘳𝘦  (𝘰𝘵𝘩𝘦𝘳 𝘸𝘦𝘢𝘱𝘰𝘯𝘴)',
   	  '[*]  𝘏𝘪𝘵 𝘋𝘢𝘮𝘢𝘨𝘦',
@@ -2144,41 +2283,42 @@ function WeaponsOption()
         '𝘈𝘶𝘵𝘰 𝘍𝘪𝘳𝘦 - 𝘉𝘢𝘻𝘰𝘰𝘬𝘢',
   	  '𝘉𝘢𝘻𝘰𝘰𝘬𝘢 - 𝘋𝘢𝘮𝘢𝘨𝘦',
    	 '𝘙𝘢𝘱𝘪𝘥 𝘍𝘪𝘳𝘦 - 𝘊𝘶𝘣𝘦 𝘎𝘶𝘯',
-    	'𝘙𝘢𝘱𝘪𝘥 𝘙𝘦𝘮𝘰𝘷𝘦 - 𝘊𝘶𝘣𝘦 𝘎𝘶𝘯',
    	 '𝘙𝘢𝘱𝘪𝘥 𝘍𝘪𝘳𝘦 - 𝘙𝘢𝘪𝘭 𝘎𝘶𝘯',
    	 '𝘙𝘢𝘱𝘪𝘥 𝘍𝘪𝘳𝘦 - 𝘚𝘸𝘰𝘳𝘥',
-  	  '𝘏𝘦𝘢𝘭 𝘙𝘢𝘺 - 𝘙𝘢𝘯𝘨𝘦',
+   	 '𝘔𝘦𝘭𝘦𝘦𝘞𝘦𝘢𝘱𝘰𝘯 - 𝘕𝘰 𝘍𝘪𝘳𝘦 𝘈𝘯𝘪𝘮 𝘛𝘪𝘮𝘦',
+   	 '𝘔𝘦𝘭𝘦𝘦𝘞𝘦𝘢𝘱𝘰𝘯 - 𝘙𝘢𝘯𝘨𝘦',
+   	 '𝘔𝘦𝘭𝘦𝘦𝘞𝘦𝘢𝘱𝘰𝘯 - 𝘋𝘢𝘮𝘢𝘨𝘦',
    	 '𝘐𝘮𝘱𝘶𝘭𝘴𝘦 𝘎𝘶𝘯 - 𝘙𝘢𝘯𝘨𝘦',
    	 '𝘐𝘮𝘱𝘶𝘭𝘴𝘦 𝘎𝘶𝘯 - 𝘙𝘦𝘷𝘦𝘳𝘴𝘦 𝘐𝘮𝘱𝘶𝘭𝘴𝘦',
-    	'𝘊𝘶𝘣𝘦 𝘎𝘶𝘯 - 𝘔𝘢𝘵𝘦𝘳𝘪𝘢𝘭 𝘊𝘩𝘢𝘯𝘨𝘦𝘳',
-    	'𝘊𝘶𝘣𝘦 𝘎𝘶𝘯 - 𝘙𝘢𝘪𝘯𝘣𝘰𝘸 + 𝘍𝘢𝘷',
-   	 '𝘊𝘶𝘣𝘦 𝘎𝘶𝘯 - 𝘙𝘢𝘥𝘪𝘶𝘴',
-   	 '𝘊𝘶𝘣𝘦 𝘎𝘶𝘯 - 𝘚𝘩𝘢𝘱𝘦 𝘌𝘥𝘪𝘵  (𝘝𝘪𝘴𝘶𝘢𝘭)',
-   	 '𝘚𝘩𝘰𝘵𝘨𝘶𝘯 - 𝘙𝘢𝘥𝘪𝘶𝘴'
+    	'[*]  𝘊𝘶𝘣𝘦 𝘎𝘶𝘯 - 𝘔𝘢𝘵𝘦𝘳𝘪𝘢𝘭 𝘊𝘩𝘢𝘯𝘨𝘦𝘳',
+    	'[*]  𝘊𝘶𝘣𝘦 𝘎𝘶𝘯 - 𝘙𝘢𝘪𝘯𝘣𝘰𝘸 + 𝘍𝘢𝘷',
+   	 '[*]  𝘊𝘶𝘣𝘦 𝘎𝘶𝘯 - 𝘙𝘢𝘥𝘪𝘶𝘴',
+   	 '𝘊𝘶𝘣𝘦 𝘎𝘶𝘯 - 𝘚𝘩𝘢𝘱𝘦 𝘌𝘥𝘪𝘵  (𝘝𝘪𝘴𝘶𝘢𝘭)'
 	})
     if options == nil then ReturnMain() return end
     if options[1] == true then AmmunitionOption() end
     if options[2] == true then OtherWeaponSpawnOption() end
-    if options[3] == true then SpeedWeapon() end
-    if options[4] == true then RapidFireWeapons() end
-    if options[5] == true then WeaponHitDamage() end
-    if options[6] == true then AutoFireShotgun() end
-    if options[7] == true then AutoFireSixShooter() end
-    if options[8] == true then AutoFireDoubleSixShooter() end
-    if options[9] == true then AutoFireBazooka() end
-    if options[10] == true then BazookaDamageSettings() end
-    if options[11] == true then CubeGunRapidFire() end
-    if options[12] == true then CubegunDeleteSpeed() end
+    if options[3] == true then WeaponsCrashOption() end
+    if options[4] == true then SpeedWeapon() end
+    if options[5] == true then RapidFireWeapons() end
+    if options[6] == true then WeaponHitDamage() end
+    if options[7] == true then AutoFireShotgun() end
+    if options[8] == true then AutoFireSixShooter() end
+    if options[9] == true then AutoFireDoubleSixShooter() end
+    if options[10] == true then AutoFireBazooka() end
+    if options[11] == true then BazookaDamageSettings() end
+    if options[12] == true then RapidCubeGunOption() end
     if options[13] == true then RailGunRapidFire() end
     if options[14] == true then SwordRapidFire() end
-    if options[15] == true then HealRayRange() end
-    if options[16] == true then ImpulseRangeSettings() end
-    if options[17] == true then ImpulseReverse() end
-    if options[18] == true then CubegunChangeColor() end
-    if options[19] == true then CubegunRandom() end
-    if options[20] == true then MiniCubeGunRadius() end
-    if options[21] == true then CubeGunShapeEdit() end
-    if options[22] == true then MiniShotgunRadius() end
+    if options[15] == true then MeleeWeaponCheckHitCustom('0.2', '0', '0.2', 'MeleeWeapon No Fire Anim Time', 'Melee anim time') end
+    if options[16] == true then MeleeWeaponCheckHitRange() end
+    if options[17] == true then MeleeWeaponDamage() end
+    if options[18] == true then ImpulseRangeSettings() end
+    if options[19] == true then ImpulseReverse() end
+    if options[20] == true then CubegunChangeColor() end
+    if options[21] == true then CubegunRandom() end
+    if options[22] == true then MiniCubeGunRadius() end
+    if options[23] == true then CubeGunShapeEdit() end
 end
 
 
@@ -2243,7 +2383,7 @@ function CubeGunRainbowAndFavOption()
 	local options = gg.multiChoice({
 		'𝘔𝘢𝘵𝘦𝘳𝘪𝘢𝘭 𝘙𝘢𝘪𝘯𝘣𝘰𝘸',
 		'𝘔𝘢𝘵𝘦𝘳𝘪𝘢𝘭 𝘍𝘢𝘷  (𝘴𝘦𝘭𝘦𝘤𝘵 𝘤𝘶𝘣𝘦𝘴 𝘢𝘴 𝘳𝘢𝘪𝘯𝘣𝘰𝘸)',
-		'𝘔𝘢𝘵𝘦𝘳𝘪𝘢𝘭 𝘐𝘯𝘫𝘦𝘤𝘵𝘰𝘳  (𝘝𝘪𝘴𝘶𝘢𝘭)',
+		'[*]  𝘔𝘢𝘵𝘦𝘳𝘪𝘢𝘭 𝘐𝘯𝘫𝘦𝘤𝘵𝘰𝘳  (𝘝𝘪𝘴𝘶𝘢𝘭)',
 		'𝘋𝘦𝘴𝘢𝘤𝘵𝘪𝘷𝘦 𝘈𝘯𝘥 𝘙𝘦𝘢𝘤𝘵𝘪𝘷𝘢𝘵𝘦',
 		'_𝘤𝘰𝘭𝘰𝘳𝘴_𝘭𝘪𝘴𝘵_'
 	},nil,'Select an option')
@@ -2274,9 +2414,9 @@ function CubeGunShapeEditOption()
 	local options = gg.multiChoice({
 		'𝘚𝘩𝘢𝘱𝘦 𝘐𝘋;  '.._cube_shape_ID,
    	 '𝘊𝘶𝘣𝘦 𝘚𝘪𝘻𝘦  (𝘯𝘰𝘳𝘮𝘢𝘭 = 1);  '.._cube_size,
- 	   '𝘊𝘶𝘣𝘦 𝘖𝘧𝘧𝘴𝘦𝘵 𝘟/𝘡;  '.._cube_offsetXZ,
+ 	   '??𝘶𝘣𝘦 𝘖𝘧𝘧𝘴𝘦𝘵 𝘟/𝘡;  '.._cube_offsetXZ,
  	   '[*]  𝘊𝘶𝘣𝘦 𝘙𝘰𝘵𝘢𝘵𝘪𝘰𝘯  (??𝘰𝘳𝘮𝘢𝘭 = 0);  '.._cube_rotation,
- 	   '𝘊𝘶𝘣𝘦 𝘐𝘯𝘷𝘪𝘴𝘪𝘣𝘪𝘭𝘪𝘵𝘺',
+ 	   '𝘊𝘶𝘣𝘦 𝘐𝘯??𝘪𝘴𝘪𝘣𝘪𝘭𝘪𝘵𝘺',
  	   '𝘊𝘶𝘣𝘦 𝘙𝘢𝘯𝘥𝘰𝘮 𝘚𝘩𝘢𝘱𝘦'
 	}, nil, 'Press "Cancel" to return menu')
 	if options == nil then ReturnMain() return end
@@ -2335,6 +2475,7 @@ end
 
 function WeaponsCrashOption()
 	local options = gg.multiChoice({
+		'𝘐𝘮𝘱𝘶𝘭𝘴𝘦 𝘒𝘪𝘤𝘬  (𝘰𝘵𝘩𝘦𝘳 𝘸𝘦𝘢𝘱𝘰𝘯𝘴)',
    	 '[*]  𝘐𝘮𝘱𝘶𝘭𝘴𝘦 𝘎𝘶𝘯 - 𝘐𝘮𝘱𝘶𝘭𝘴𝘦 𝘒𝘪𝘤𝘬',
  	   '𝘊𝘦𝘯𝘵𝘦𝘳 𝘎𝘶𝘯 - 𝘐𝘮𝘱𝘶𝘭𝘴𝘦 𝘒𝘪𝘤𝘬',
 	    '𝘚𝘩𝘰𝘵𝘨𝘶𝘯 - 𝘐𝘮𝘱𝘶𝘭𝘴𝘦 𝘒𝘪𝘤𝘬',
@@ -2342,11 +2483,12 @@ function WeaponsCrashOption()
   	  '𝘉𝘢𝘻𝘰𝘰𝘬𝘢 - 𝘐𝘮𝘱𝘶𝘭𝘴𝘦 𝘒𝘪𝘤𝘬'
 	})
 	if options == nil then ReturnMain() return end
-	if options[1] == true then ImpulseCrash() end
-	if options[2] == true then CentergunCrash() end
-	if options[3] == true then ShotgunCrash() end
-	if options[4] == true then RevolverCrash() end
-	if options[5] == true then BazookaCrash() end
+	if options[1] == true then ImpulseKickWeapon() end
+	if options[2] == true then ImpulseCrash() end
+	if options[3] == true then CentergunCrash() end
+	if options[4] == true then ShotgunCrash() end
+	if options[5] == true then RevolverCrash() end
+	if options[6] == true then BazookaCrash() end
 end
 
 function OtherWeaponSpawnOption()
@@ -2386,7 +2528,7 @@ function WeaponSpawnOption()
         '𝘚𝘱𝘢𝘸𝘯 𝘎𝘳𝘰𝘸𝘵𝘩𝘎𝘶𝘯',
         '𝘚𝘱𝘢𝘸𝘯 𝘚𝘭𝘢𝘱𝘎𝘶𝘯',
         '𝘚𝘱𝘢𝘸𝘯 𝘏𝘦𝘢𝘭𝘙𝘢𝘺',
-        '[*]  𝘚𝘱𝘢𝘸𝘯 ??𝘢𝘴𝘦𝘳𝘗𝘰??𝘯𝘵𝘦𝘳',
+        '[*]  𝘚𝘱𝘢𝘸𝘯 𝘓𝘢𝘴𝘦𝘳𝘗𝘰??𝘯𝘵𝘦𝘳',
         '𝘚𝘱𝘢𝘸𝘯 𝘏𝘦𝘢𝘭𝘵𝘩',
         '𝘚𝘱𝘢𝘸𝘯 𝘔𝘶𝘵𝘢𝘯𝘵',
         '𝘚𝘱𝘢𝘸𝘯 𝘕𝘪𝘯𝘫𝘢𝘙𝘶𝘯',
@@ -2433,7 +2575,8 @@ function AnimationsOption()
    	 '𝘍𝘳𝘦𝘦𝘻𝘦 𝘋𝘦𝘢𝘵𝘩 𝘈𝘯𝘪𝘮𝘢𝘵𝘪𝘰𝘯',
 	    '𝘈𝘯𝘪𝘮𝘢𝘵𝘪𝘰𝘯 1  (jump)',
   	  '𝘈𝘯𝘪𝘮𝘢𝘵𝘪𝘰𝘯 2  (𝘫𝘦𝘵𝘱𝘢𝘤𝘬)',
-  	  '𝘈𝘯𝘪𝘮𝘢𝘵𝘪𝘰𝘯 3  (𝘢𝘯𝘪𝘮𝘢𝘵𝘦𝘥 𝘢𝘳𝘮)'
+  	  '𝘈𝘯𝘪𝘮𝘢𝘵𝘪𝘰𝘯 3  (𝘢𝘯𝘪𝘮𝘢𝘵𝘦𝘥 𝘢𝘳𝘮)',
+  	  '𝘈𝘯𝘪𝘮𝘢𝘵𝘪𝘰𝘯 4  (𝘪𝘥𝘭𝘦)'
 	})
 	if options == nil then ReturnMain() return end
 	if options[1] == true then PlayerEffect('26') end
@@ -2441,6 +2584,7 @@ function AnimationsOption()
 	if options[3] == true then Animation_1() end
 	if options[4] == true then JetpackAnimation() end
 	if options[5] == true then Animation_3() end
+	if options[6] == true then Animation_4() end
 end
 
 function AmmunitionOption()
@@ -2478,9 +2622,10 @@ end
 function NPCAIOption()
 	local options = gg.multiChoice({
 		'𝘕𝘰 𝘖𝘤𝘶𝘭𝘶𝘴 𝘞𝘦𝘢𝘱𝘰𝘯',
-		'𝘕𝘰 𝘖𝘤𝘶𝘭𝘶𝘴 𝘚𝘰𝘶𝘯𝘥',
+		'𝘕𝘰 ??𝘤𝘶𝘭𝘶𝘴 𝘚𝘰𝘶𝘯𝘥',
 		'𝘕𝘰 𝘖𝘤𝘶𝘭𝘶𝘴 𝘋𝘢𝘮𝘢𝘨𝘦',
 		'𝘝𝘦𝘩𝘪𝘤𝘭𝘦 𝘊𝘢𝘮𝘦𝘳𝘢 - 𝘍𝘖𝘝',
+		'𝘐𝘕𝘍. 𝘌𝘯??𝘳𝘨𝘺',
 		'𝘕𝘰 𝘐𝘤𝘦 𝘛𝘰𝘸𝘦𝘳',
 		'𝘕𝘰 𝘍𝘪𝘳𝘦 𝘛𝘰𝘸𝘦𝘳',
 		'𝘕𝘰 𝘛𝘰𝘸𝘦𝘳 𝘉𝘦𝘢𝘮',
@@ -2492,16 +2637,17 @@ function NPCAIOption()
 	if options[2] == true then NoOculusSoundEffect() end
 	if options[3] == true then NoOculusDamage() end
 	if options[4] == true then VehicleCameraFov() end
-	if options[5] == true then NoIceTower() end
-	if options[6] == true then NoFireTower() end
-	if options[8] == true then InfiniteJetpack() end
-	if options[9] == true then SpeedJetPack() end
+	if options[5] == true then InfiniteEnergyVehicle() end
+	if options[6] == true then NoIceTower() end
+	if options[7] == true then NoFireTower() end
+	if options[9] == true then InfiniteJetpack() end
+	if options[10] == true then SpeedJetPack() end
 end
 
 function ShopOption()
 	local options = gg.multiChoice({
 		'[*]  𝘈𝘤𝘤𝘦𝘴𝘴𝘰𝘳𝘪𝘦𝘴 𝘚𝘪𝘻𝘦 (𝘝𝘪𝘴𝘶𝘢𝘭)',
-		'𝘎𝘰𝘭𝘥 𝘔𝘰𝘥𝘪𝘧𝘪𝘦𝘳 (𝘝𝘪𝘴𝘶𝘢𝘭)'
+		'𝘎𝘰𝘭𝘥 𝘔𝘰𝘥𝘪𝘧??𝘦𝘳 (𝘝𝘪𝘴𝘶𝘢𝘭)'
 	})
 	if options == nil then ReturnMain() return end
 	if options[1] == true then AccessorySettings() end
@@ -2527,13 +2673,14 @@ function OtherOption()
    	 '𝘛𝘦𝘢𝘮 𝘚𝘱𝘢𝘸𝘯',
    	 '𝘐𝘕𝘍. 𝘖𝘹𝘺𝘨𝘦𝘯',
    	 '𝘈𝘭𝘸𝘢𝘺𝘴 𝘚𝘸𝘪𝘮𝘮𝘪𝘯𝘨',
-   	 '𝘊𝘶𝘣𝘦 𝘙𝘢𝘥𝘪𝘶𝘴 𝘛𝘺𝘱𝘦  (𝘧𝘰𝘳 𝘊𝘶𝘣𝘦 𝘊𝘶𝘯 - 𝘙𝘢??𝘪𝘶𝘴)',
+   	 '𝘊𝘶𝘣𝘦 𝘙𝘢𝘥𝘪𝘶𝘴 𝘛𝘺𝘱𝘦  (𝘧𝘰𝘳 𝘊𝘶𝘣𝘦 𝘊𝘶𝘯 - 𝘙𝘢𝘥𝘪𝘶𝘴)',
    	 '𝘙𝘦𝘴𝘰𝘭𝘶𝘵𝘪𝘰𝘯 𝘊𝘩𝘢𝘯𝘨𝘦𝘳',
    	 '𝘚𝘮𝘰𝘰𝘵𝘩 𝘊𝘢𝘮',
+   	 '𝘗𝘳𝘰𝘧𝘪𝘭𝘦 𝘐𝘋 𝘊𝘩𝘢𝘯𝘨𝘦𝘳',
    	 '𝘗𝘳𝘰𝘧𝘪𝘭𝘦 𝘐𝘋 + 𝘓𝘝𝘓 𝘜𝘱  (𝘝𝘪𝘴𝘶𝘢𝘭)',
     	'[*]  𝘗𝘳𝘰𝘧𝘪𝘭𝘦 𝘛𝘰𝘬𝘦𝘯',
 		'𝘎𝘢𝘮𝘦 𝘎𝘳𝘢𝘱𝘩𝘪𝘤𝘴  (𝘈𝘯𝘥𝘳𝘰𝘪𝘥)',
-		'𝘔𝘰𝘷𝘦𝘮𝘦𝘯𝘵𝘴 𝘚𝘱𝘦𝘦𝘥'
+		'𝘔𝘰??𝘦𝘮𝘦𝘯𝘵𝘴 𝘚𝘱𝘦𝘦𝘥'
 	})
 	if options == nil then ReturnMain() return end
 	if options[1] == true then AdjustJumpHeight() end
@@ -2544,10 +2691,11 @@ function OtherOption()
 	if options[6] == true then CubeRadiusTypeOptions() end
 	if options[7] == true then ResolutionChanger() end
 	if options[8] == true then SmoothCamera() end
-	if options[9] == true then ProfileID_LevelUp() end
-	if options[10] == true then ProfileToken() end
-	if options[11] == true then GameGraphicsOption() end
-	if options[12] == true then AnimationSpeed() end
+	if options[9] == true then ProfileIDChanger() end
+	if options[10] == true then ProfileID_LevelUp() end
+	if options[11] == true then ProfileToken() end
+	if options[12] == true then GameGraphicsOption() end
+	if options[13] == true then AnimationSpeed() end
 end
 
 -- ##########################################################
@@ -2555,6 +2703,526 @@ end
 -- oculus other values: 5;1000;0.9;2.5
 -- oculus sound:  0.103
 -- oculus damage: 0.5;17;4
+-- hovercraft health (Anti Cheat detects it): 150
+-- hovercraft speed (i can't found it): 8
+-- hovercraft energy (default): 257D;5,550;3~30::
+-- meleeweapon damage (default): 15
+-- meleeweapon knockback: 500
+-- meleeweapon range: 4
+-- 200;230;255;1;5~100::70
+
+function RegenerateHealthWithReviveMode()
+	gg.alert('Try to have your player health completed\n2~4 Scans (This may take a long time!)')
+	
+	local health_values
+	local max_repetitions = 2
+	
+	local function LoadResult(results)
+		gg.clearResults()
+		gg.loadResults(results)
+		return gg.getResults('999')
+	end
+	
+	local function retard_tableCount(bruh_table)
+    	local count = 0
+    	for _ in pairs(bruh_table) do 
+     	   count = count + 1 
+    	end
+   	 return count
+	end
+	
+	local function isEqualResultDead(equal_address, dead_coords)
+		local found_value = false
+		local recursion_count = 0
+		local results_data_cache = {}
+		
+	    local function isEqualCoords(coords)
+	         local other_coords = getSavedResults('Player coords', 'float', 2)
+	         for k, otc in ipairs(other_coords) do
+	              if otc.value == coords.value then
+	                   return true
+	              end
+	              return false
+	         end
+	    end
+	
+		while true do
+			local results = gg.getResults('999')
+			for _, nwresult in ipairs(results) do
+				if nwresult.address == equal_address and nwresult.value == 0 then
+				    print('NW RESULT')
+				    print(nwresult.address, nwresult.value)
+				    
+				    for x, dresult in ipairs(dead_coords) do
+				         if not isEqualCoords(dresult) and recursion_count == 3 then
+							print('Finalized')
+				            gg.sleep('500')
+				            ::finalized::
+				         end
+				         print(dresult.value, dresult.address)
+				         recursion_count = recursion_count + 1
+				    end
+				              
+					found_value = true
+					goto found
+				end
+			end
+		end
+		::finalized::
+		::found::
+		recursion_count = 0
+		print('RC:  '..recursion_count)
+		return found_value
+	end
+	
+	local function CustomScanFuzzyDecrease(changed, old_results)
+		local new_results = {}
+		
+		local function isValueInList(value)
+        	for _, changed_r in ipairs(changed) do
+            	if value == changed_r.value then
+            		print(changed_r.value)
+                	return true
+            	end
+        	end
+        	return false
+    	end
+    
+		for i, result in ipairs(old_results) do
+			if not isValueInList(result.value) then
+				print(result.value)
+				print('-----------------')
+				table.insert(new_results, {address=result.address, value=result.value, flags=result.flags})
+			end
+		end
+		
+		gg.clearResults()
+		gg.loadResults(new_results)
+		print(gg.getResultsCount())
+		return gg.getResults('999')
+	end
+	
+	-- player effect :
+	PlayerEffect('0')
+	if checkSavedResults('Player Effects (change to 0 to desactive it)') == false then
+		print('[FAILED] Player Effect')
+		return
+	end
+	-- health value scan :
+	if checkSavedResults('player health') == false then
+		local new_health_results = {}
+		
+		gg.clearResults()
+		gg.searchNumber('200;230;255;1;5~100::70', gg.TYPE_FLOAT)
+		gg.refineNumber('5~100', gg.TYPE_FLOAT)
+	
+		local healths_results = gg.getResults('500')
+		-- change player effect to fire mode :
+		PlayerEffect('1')
+	
+		-- As health diminishes, we seek the value of health :
+		-- This fuzzy search should last 2~6 seconds, depending on Ram
+		health_values = LoadResult(healths_results)
+	
+		for x = 1, max_repetitions do
+			health_values = CustomScanFuzzyDecrease(health_values, healths_results)
+		end
+	
+		-- save
+		PlayerEffect('18') -- regenerate health
+		gg.sleep('4000')
+		PlayerEffect('0')
+		
+		for h, hhtresult in ipairs(health_values) do
+			if hhtresult.value == 100.0 then
+				table.insert(new_health_results, {address=hhtresult.address, value=hhtresult.value, flags=hhtresult.flags})
+			end
+		end
+		
+		success('Saved Health Value', 'player health', new_health_values)
+	end
+	
+	-- player coords :
+	gg.clearResults()	
+	-- check if it is already saved or not
+	if checkSavedResults('Player coords') == false then
+		CustomTeleport('...', 'Activing', true)
+		gg.clearResults()
+	end
+	
+	-- dead player boolean :
+	if checkSavedResults('IsDeath Player') == false then
+		gg.searchNumber('0.58088231087F;1F;2F;2F;1;0::270', gg.TYPE_DWORD)
+		gg.refineNumber('0', gg.TYPE_DWORD)
+	
+		local dead_results = gg.getResults('500')
+		print(dead_results)
+		success('...', 'IsDeath Player', dead_results, nil, true)
+	else
+		local alka = getSavedResults('IsDeath Player', 'dword')
+		LoadResult(alka)
+	end
+	
+	--  ===================== HACK =========================
+	local function RegenerateHealthBucle(hresultsc)
+		local _ready
+		local function isCompletedHealth(results)
+			local completed_value = false
+			hlolresults = LoadResult(results)
+			
+			for k, hlol in ipairs(hlolresults) do
+				if hlol.value == 100.0 then
+					completed_value = true
+				end
+			end
+			
+			return completed_value
+		end
+		
+		while true do
+			PlayerEffect('18')
+			gg.sleep('2500')
+			
+			_ready = isCompletedHealth(hresultsc)
+			if _ready == true then
+				::done::
+			end
+		end
+		
+		::done::
+		PlayerEffect('0')
+		LoadResult(dead_results)
+		print('[REGENERATED] Health')
+	end
+		
+	while true do
+		local health_values_cache = {}
+		
+		-- check if the player health has decreased :
+		local my_health_values = getSavedResults('player health', 'float', 2)
+		print('veamos')
+		print(my_health_values)
+		for _, health in ipairs(my_health_values) do
+			if health.value ~= 100 then
+				table.insert(health_values_cache, {address=health.address, value=health.value, flags=health.flags})
+			end
+		end
+		
+		if retard_tableCount(my_health_values) == retard_tableCount(health_values_cache) then
+			RegenerateHealthBucle(health_values_cache)
+			health_values_cache = {}
+		else
+			health_values_cache = {}
+			LoadResult(dead_results)
+		end
+		
+		
+		-- revive mode :
+		local dresults = gg.getResults('999')
+		for i, result in ipairs(dresults) do
+			if result.value == 1 then
+			    print('Found value of while:  '..result.address)
+			    print('Value:  '..result.value)
+			
+				local result_address = result.address
+				local dead_coords = getSavedResults('Player coords', 'float', 2)
+				local new_results = LoadResult(results)
+				
+				-- check if the player has already respawned 
+				local rDead_player = isEqualResultDead(result_address, dead_coords)
+				if rDead_player == true then
+					-- Coordinates where it reappeared
+					local spawn_coords = getSavedResults('Player coords', 'float', 2)
+					print(spawn_coords)
+					LoadResult(spawn_coords)
+					gg.setValues(dead_coords)
+					
+					-- respawn a temporary protection
+					PlayerEffect('17')
+					gg.sleep('5000')
+					PlayerEffect('0')
+					-------
+				
+					gg.sleep('150')
+					LoadResult(new_results)
+				end
+			end
+		end
+	end
+end
+
+function AntiGravity()
+	if checkSavedResults('Anti gravity') then
+		OptionHackActivation(antigravity_actived, 'Anti gravity', 'dword', '0', '1')
+		return
+	end
+	
+	gg.clearResults()
+	gg.setRanges(gg.REGION_ANONYMOUS)
+	gg.searchNumber('2~100F;30F;1;3::300', gg.TYPE_DWORD)
+	gg.refineNumber('1', gg.TYPE_DWORD)
+	
+	if gg.getResultsCount() <= 0 then
+		notFoundError()
+		return
+	end
+	
+	local results = gg.getResults('500')
+	gg.editAll('0', gg.TYPE_DWORD)
+	success('Actived Anti-Gravity', 'Anti gravity', results)
+end
+
+function NoCollectPickups()
+	local saved = isSavedResult('collect pickups', '7;63;64', 'dword', nil, 'desative')
+	if saved == true then
+		return
+	end
+	
+	gg.clearResults()
+	gg.setRanges(gg.REGION_ANONYMOUS)
+	gg.searchNumber('2049;7~64;1::', gg.TYPE_DWORD)
+	gg.refineNumber('7~64', gg.TYPE_DWORD)
+	
+	if gg.getResultsCount() <= 0 then
+		notFoundError()
+		return
+	end
+	
+	local results = gg.getResults('20')
+	results = GetSelectedPickups(results)
+	gg.editAll('0', gg.TYPE_DWORD)
+	success('Actived No Collect Pickups', 'collect pickups', results)
+end
+
+function Animation_4()
+	local saved = isSavedResult('animation 4', '1', 'dword', nil, 'desative')
+	if saved == true then
+		return
+	end
+	
+	gg.clearResults()
+	gg.setRanges(gg.REGION_ANONYMOUS)
+	gg.searchNumber('1;259,000~261,000;-3760~-3700::70', gg.TYPE_DWORD)
+	gg.refineNumber('1', gg.TYPE_DWORD)
+	
+	if gg.getResultsCount() <= 0 then
+		notFoundError()
+		return
+	end
+	
+	local results = gg.getResults('20')
+	gg.editAll('0', gg.TYPE_DWORD)
+	success('Actived Animation 4', 'animation 4', results)
+end
+
+function InfiniteEnergyVehicle()
+	local saved = isSavedResult('vehicle energy', '6', 'float', nil, 'desactive')
+	if saved == true then
+		return
+	end
+	
+	local function LoadResultAndEdit(results)
+		gg.clearResults()
+		gg.loadResults(results)
+		local loaded = gg.getResults('999')
+		
+		gg.editAll('0', gg.TYPE_FLOAT)
+		success('...', 'vehicle energy', loaded, nil, true)
+	end
+	
+	-- HamsterWheel, HoverCraft :
+	gg.clearResults()
+	gg.setRanges(gg.REGION_ANONYMOUS)
+	gg.searchNumber('257D;3500~5,500;4~6;11~12D::80', gg.TYPE_FLOAT)
+	gg.refineNumber('4~6', gg.TYPE_FLOAT) -- Energy consumption rate
+	
+	if gg.getResultsCount() <= 0 then
+		notFoundError()
+		return
+	end
+	
+	local results1 = gg.getResults('500')
+	gg.clearResults()
+	
+	-- JetPack :
+	gg.searchNumber('1D;2000~3000;3~4;12D::80', gg.TYPE_FLOAT)
+	gg.refineNumber('3~4', gg.TYPE_FLOAT)
+	
+	if gg.getResultsCount() <= 0 then
+		notFoundError()
+		-- continue
+	end
+	
+	local results2 = gg.getResults('500')
+	-- save
+	LoadResultAndEdit(results1)
+	LoadResultAndEdit(results2)
+	gg.toast('Actived INF. Energy')
+end
+
+function MeleeWeaponCheckHitCustom(refine_value, edit_value, off_value, display_name, func_name)
+	if checkSavedResults(func_name) then
+		isSavedResult(func_name, off_value, 'float')
+		return
+	end
+	
+	gg.alert('Use the default Melee Weapon')
+	gg.clearResults()
+	gg.setRanges(gg.REGION_ANONYMOUS)
+	gg.searchNumber('0.2;0.3;4', gg.TYPE_FLOAT)
+	gg.refineNumber(refine_value, gg.TYPE_FLOAT)
+	
+	if gg.getResultsCount() <= 0 then
+		notFoundError()
+		return
+	end
+	
+	local results = gg.getResults('500')
+	gg.editAll(edit_value, gg.TYPE_FLOAT)
+	success('Actived '..display_name, func_name, results)
+end
+
+function MeleeWeaponCheckHitRange()
+	local range_amount = gg.prompt({'Range Amount (normal = 4)'})
+	local saved = isSavedResult('Melee range', range_amount[1], 'float')
+	if saved == true then
+		return
+	end
+	
+	gg.alert('Use the default Melee Weapon')
+	gg.clearResults()
+	gg.setRanges(gg.REGION_ANONYMOUS)
+	gg.searchNumber('0.2;0.3;4', gg.TYPE_FLOAT)
+	gg.refineNumber('4', gg.TYPE_FLOAT)
+	
+	if gg.getResultsCount() <= 0 then
+		notFoundError()
+		return
+	end
+	
+	local results = gg.getResults('500')
+	gg.editAll(range_amount[1], gg.TYPE_FLOAT)
+	success('Actived MeleeWeapon Range', 'Melee range', results)
+end
+
+function MeleeWeaponDamage()
+	local saved = isSavedResult('Melee damage', '20', 'float', nil, 'desactive')
+	if saved == true then
+		return
+	end
+	
+	gg.alert('Use the default Melee Weapon')
+	gg.clearResults()
+	gg.setRanges(gg.REGION_ANONYMOUS)
+	gg.searchNumber('15~100;-40~-1;500F::180', gg.TYPE_FLOAT)
+	gg.refineNumber('15~100', gg.TYPE_FLOAT)
+	
+	if gg.getResultsCount() <= 0 then
+		notFoundError()
+		return
+	end
+	
+	local results = gg.getResults('1000')
+	gg.editAll('360', gg.TYPE_FLOAT)
+	success('Actived MeleeWeapon Damage', 'Melee damage', results)
+end
+
+function FirstPersonView()
+	local scan_values = '1.2;5;2.5::'
+	local refine_cam_value = '5'
+	
+	if checkSavedResults('Camera Position') then
+		isSavedResult('Camera', '5', 'float')
+		isSavedResult('Camera Position', '2.5', 'float', nil, 'desative')
+		return
+	end
+	
+	local function LoadResult(results, save_name, refined_results)
+		success('Activing..', save_name, refined_results)
+		gg.sleep('100')
+		gg.clearResults()
+		gg.loadResults(results)
+		gg.getResults('10')
+	end
+	
+	if checkSavedResults('Camera') then
+		local cmresults = getSavedResults('Camera', 'float')
+		scan_values = '1.2;'..cmresults[1].value..';2.5::'
+		refine_cam_value = tostring(cmresults[1].value)
+	end
+	
+	gg.clearResults()
+	gg.setRanges(gg.REGION_ANONYMOUS)
+	gg.searchNumber(scan_values, gg.TYPE_FLOAT)
+	local primary_results = gg.getResults('100')
+	
+	if gg.getResultsCount() <= 0 then
+		notFoundError()
+		return
+	end
+
+	-- camera height 2 :	
+	gg.refineNumber('2.5', gg.TYPE_FLOAT)
+	local results1 = gg.getResults('10')
+	gg.editAll('1.5', gg.TYPE_FLOAT)
+	LoadResult(primary_results, 'Camera Position', results1)
+	
+	-- camera fov :
+	gg.refineNumber(refine_cam_value, gg.TYPE_FLOAT)
+	local results2 = gg.getResults('10')
+	gg.editAll('0.05', gg.TYPE_FLOAT)
+	LoadResult(primary_results, 'Camera', results2)
+	
+	gg.clearResults()
+	gg.toast('Actived First Person View')
+end
+
+function ImpulseKickWeapon() -- improved
+	gg.clearResults()
+	gg.setRanges(gg.REGION_ANONYMOUS)
+	gg.searchNumber('1F;444,444D;443,000~445,590D;1~1600;2~150D:140', gg.TYPE_FLOAT)
+	gg.refineNumber('2~1600', gg.TYPE_FLOAT)
+	
+	if gg.getResultsCount() <= 0 then
+		notFoundError()
+		return
+	end
+	
+	local results = gg.getResults('2000')
+	results = SearchWeaponDamage(results)
+	
+	gg.editAll('3.4E38', gg.TYPE_FLOAT)
+	success('Actived Impulse Kick', 'impulse kicks', results)
+end
+
+function ProfileIDChanger() -- similar to "Profile ID + LVL Up  (Visual)"
+	-- pause :
+	local YL_Profile_ID = '40000000' -- previous ID: 20338
+	gg.processPause()
+	local profile_id = gg.prompt({'Note: Activate this before the "Joined" comes out of the red cube\n\nProfile ID'}, {YL_Profile_ID}, {'number'})
+	
+	local saved = isSavedResult('profile changer', profile_id[1], 'dword')
+	if saved == true then
+		return
+	end
+	
+	gg.clearResults()
+	gg.setRanges(gg.REGION_ANONYMOUS)
+	gg.searchNumber('-1;1~45;100,000~1,147,000,000;259,000~262,000;-3780~-3700;1', gg.TYPE_DWORD)
+	gg.refineNumber('100,000~1,147,000,000', gg.TYPE_DWORD)
+	
+	-- play:
+	gg.processResume()
+	
+	if gg.getResultsCount() <= 0 then
+		notFoundError()
+		return
+	end
+	
+	local results = gg.getResults('50')
+	gg.editAll(profile_id[1], gg.TYPE_DWORD)
+	success('Obtained Profile ID', 'profile changer', results)
+end
 
 function ThirdPersonViewWeapon()
 	local saved = isSavedResult('3rd weapon', '1', 'dword', nil, 'desative')
@@ -2577,7 +3245,7 @@ function ThirdPersonViewWeapon()
 	success('Actived Third Person View Weapon', '3rd weapon', results)
 end
 
-function MagnetToPlayer_Object()
+function MagnetToPlayer_Object() -- DEVELOPING
 	count_player = 1
 	
 	function AddThreeResultsAndRemove(results_count, results)
@@ -2699,7 +3367,7 @@ function ProfileToken()
 	end
 	
 	-- pause KoGaMa App
-	local tourist_token = '0.tjxgbEYSDy5MWYyj2ducSL0F8aA'
+	local tourist_token = ':0.tjxgbEYSDy5MWYyj2ducSL0F8aA'
 	gg.processPause()
 	
 	gg.clearResults()
@@ -2814,8 +3482,8 @@ function GameChunkDistance(value_type)
 	
 	gg.clearResults()
 	gg.setRanges(gg.REGION_ANONYMOUS)
-	gg.searchNumber('0.33333334327;2.5;25;75~1500::', gg.TYPE_FLOAT)
-	gg.refineNumber('2~1500', gg.TYPE_FLOAT)
+	gg.searchNumber('0.33333334327;2.5;25;75~2500::', gg.TYPE_FLOAT)
+	gg.refineNumber('2~2500', gg.TYPE_FLOAT)
 	
 	if gg.getResultsCount() <= 0 then
 		notFoundError()
@@ -4124,10 +4792,11 @@ function ReviveMode()
 			for _, nwresult in ipairs(results) do
 				if nwresult.address == equal_address and nwresult.value == 0 then
 					found_value = true
-					break
+					goto found
 				end
 			end
 		end
+		::found::
 		return found_value
 	end
 	
@@ -4253,22 +4922,35 @@ function InfiniteHealthNoControls() -- inf health shitty
 	--	return
 	--end
 	
-	local function LoadResult(results)
+	local function LoadResult(results_variable)
 		gg.clearResults()
-		gg.loadResults(results)
-		gg.refineNumber('0', gg.TYPE_DWORD)
-		local results2 = gg.getResults('9999')
+		gg.loadResults(results_variable)
+		
+		while true do
+			local results = gg.getResults('99')
+			local total_results = gg.getResultsCount()
+			
+			for i, result in ipairs(results) do
+				if result.value ~= 4 then
+					if i == total_results then
+						goto done
+					end
+				end
+			end
+		end
+		
+		::done::
 		gg.editAll('1', gg.TYPE_DWORD)
-		return results2
+		return gg.getResults('99')
 	end
-	
+		
 	
 	gg.clearResults()
 	gg.setRanges(gg.REGION_ANONYMOUS)
 
 	-- player controllers : 
-	gg.searchNumber('100;100F;1;257,000~265,000', gg.TYPE_DWORD)
-	gg.refineNumber('1', gg.TYPE_DWORD)
+	gg.searchNumber('100;100F;1~4;258,000~263,000::215', gg.TYPE_DWORD)
+	gg.refineNumber('1~4', gg.TYPE_DWORD)
 	
 	if gg.getResultsCount() <= 0 then
 		notFoundError()
@@ -4513,7 +5195,7 @@ end
 
 function MiniCubeGunRadius() -- bad
 	local playerRadius = gg.prompt(
-		{'Note: Press the "SX" Button to desactive, and return main menu.\n\nX/Z Size', 'Y Size', 'Make Crumbly Blocks', 'Anti Lag (Fast Remove)', 'No Impulse (Avoid being pushed)'},
+		{'Note: Press the "SX" Button to desactive, and return main menu.\n\nX/Z Size', 'Y Size', '[*]  Make Crumbly Blocks', 'Anti Lag (Fast Remove)', 'No Impulse (Avoid being pushed)'},
 		{[1]='10', [2]='5', [3]=false, [4]=false, [5]=false},
 		{[3]='checkbox', [4]='checkbox', [5]='checkbox'}
 	)
@@ -4523,7 +5205,7 @@ function MiniCubeGunRadius() -- bad
 	
 	local checksaved = checkSavedResults('Avatar Radius second')
 	if checksaved == false then
-		gg.toast('Use Avatar Radius (auto or manual) first')
+		gg.toast('Use Avatar Radius (without the Remove blocks below player) first')
 		return
 	end
 	
@@ -4573,6 +5255,25 @@ function ImpulseNoCollision()
 	local results = gg.getResults('20')
 	gg.editAll('0', gg.TYPE_FLOAT)
 	success('Actived Impulse No Camera Collision', 'Impulse no collision', results)
+end
+
+function ImpulseReverse()
+	local saved = isSavedResult('Impulse reverse', '3000', 'float', nil, 'desactive')
+	if saved == true then
+		return
+	end
+	gg.setRanges(gg.REGION_ANONYMOUS)
+	gg.searchNumber('3000;1500', gg.TYPE_FLOAT)
+	gg.refineNumber('3000', gg.TYPE_FLOAT)
+	
+	if gg.getResultsCount() <= 0 then
+		notFoundError('Impulse reverse', '15', 'float')
+		return
+	end
+	
+	local results = gg.getResults('20')
+	gg.editAll('-4000', gg.TYPE_FLOAT)
+	success('Actived Impulse Reverse', 'Impulse reverse', results)
 end
 
 function RapidFireWeapons()
@@ -5514,8 +6215,10 @@ function SpawnWeaponID(weapon_id)
 	--weapon_data_revert = weapon_data_revert .. gg.getResults(9999)
 	
 	success('Spawned weapon, touch another weapon to activate (you have 10 seconds!)', 'Spawn weapon fr', revert_results)
-	gg.sleep(spawnweapon_sleep)
-	gg.setValues(revert_results)
+	if noweapon_sleep.bool == false then
+		gg.sleep(spawnweapon_sleep)
+		gg.setValues(revert_results)
+	end
 end
 
 function PlayerSizeAdvanced() -- Probably not visible to other players
@@ -5825,9 +6528,7 @@ function RemoveCubegunsSimple(radius_value, duration)
 		result_name_to_save = 'Avatar Radius third'
 	else
 		if checkSavedResults('Avatar Radius third') then
-			local avresults = getSavedResults('Avatar Radius third', 'float')
-			-- change name to Avatar Radius second, with success function
-			success('...', 'Avatar Radius second', avresults, nil, true)
+			ChangeSavedResultName('Avatar Radius third', 'Avatar Radius second', 'float')
 		end
 	end
 	
@@ -5885,36 +6586,45 @@ function RemoveCubegunsSimple(radius_value, duration)
 end
 
 function RemoveCubegunsXYZ()
+	local third_radius_actived = false
 	local playerRadius = gg.prompt(
-		{'X/Z Size', 'Y Size', 'Duration (seconds multiplied 2x1, example: 75 is 155 seconds) [2; 75]', 'No Radius Duration', 'Make Crumbly Blocks', 'Anti Lag (Fast remove)'},
-		{[1]='0.45', [2]='0.95', [3]=2, [4]=false, [5]=false, [6]=false},
-		{[3]='number', [4]='checkbox', [5]='checkbox', [6]='checkbox'}
+		{'X/Z Size  (DO NOT GO THAN 3)', 'Y Size  (DO NOT GO THAN 2)', '[*]  X/Z/Y Increase  (optional)', 'Duration (seconds multiplied 2x1, example: 75 is 155 seconds) [2; 75]', 'No Radius Duration', '[*]  Make Crumbly Blocks', 'Anti Lag (Fast remove)'},
+		{[1]='0.45', [2]='0.95', [3]='1.4', [4]=2, [5]=false, [6]=false, [7]=false},
+		{[3]='number', [4]='number', [5]='checkbox', [6]='checkbox', [7]='checkbox'}
 	)
 	--gg.alert('rb: '..playerRadius[3])
-	playerRadius[3] = string.gsub(tostring(math.floor(playerRadius[3] * 2)), '%.0', '')
+	playerRadius[4] = string.gsub(tostring(math.floor(playerRadius[4] * 2)), '%.0', '')
+	local XYZ_RADIUS = playerRadius[1]..';'..playerRadius[2]
 	--gg.alert('r: '..playerRadius[3])
 	
-	if playerRadius[4] == true then
-		playerRadius[3] = nil
+	-- increase radius (simple) :
+	if playerRadius[3] ~= '1.4' then
+		XYZ_RADIUS = playerRadius[3]
+	end
+	----------
+	
+	-- Radius Duration Set :
+	if playerRadius[5] == true then
+		playerRadius[4] = nil
 	else
 		if checkSavedResults('Avatar Radius second') then
-			playerRadius[3] = playerRadius[3]..'000'
+			playerRadius[4] = playerRadius[4]..'000'
 		end
 	end
+	--------
 	
 	-- change to Avatar Radius second:
 	if checkSavedResults('Avatar Radius third') then
-		local avtradius = getSavedResults('Avatar Radius third')
-		-- change name
-		success('...', 'Avatar Radius second', avtradius, nil, true)
+		ChangeSavedResultName('Avatar Radius third', 'Avatar Radius second', 'float')
+		third_radius_actived = true
 	end
 	
-	local saved = isSavedResult('Avatar Radius second', playerRadius[1]..';'..playerRadius[2],  'float',  playerRadius[3], nil, playerRadius[5], playerRadius[6])
+	local saved = isSavedResult('Avatar Radius second', XYZ_RADIUS, 'float',  playerRadius[4], nil, playerRadius[6], playerRadius[7])
 	if saved == true then
 		return
 	end
 	
-	if playerRadius[5] == true and checkSavedResults('Player Effects (change to 0 to desactive it)') == false then
+	if playerRadius[6] == true and checkSavedResults('Player Effects (change to 0 to desactive it)') == false then
 		gg.toast('Use "All Blocks Destructibles" or "Spawm Proctection" first')
 		return
 	end
@@ -5932,7 +6642,7 @@ function RemoveCubegunsXYZ()
 		return gg.getResults('999')
 	end
 	
-	if playerRadius[6] == true then
+	if playerRadius[7] == true then
 		if checkSavedResults('Anti Lag') == false then
 			AntiLagRadius()
 		end
@@ -5950,23 +6660,23 @@ function RemoveCubegunsXYZ()
 	
 	local results = gg.getResults('10')
 	-- edit anti lag hack :
-	if playerRadius[6] == true then
+	if playerRadius[7] == true then
 		isSavedResult('Anti Lag', '9999', 'float')
 		results = LoadResults(results)
 	end
 	------------------------
 	
-	gg.editAll(playerRadius[1]..';'..playerRadius[2], gg.TYPE_FLOAT)
-	if playerRadius[5] == true then
+	gg.editAll(XYZ_RADIUS, gg.TYPE_FLOAT)
+	if playerRadius[6] == true then
 		results = CrumblyBlocksAndLoadResult(results)
 	end
 	
-	if playerRadius[4] == false then
-		gg.sleep(playerRadius[3]..'000')
+	if playerRadius[5] == false then
+		gg.sleep(playerRadius[4]..'000')
 		gg.editAll('0.45;0.95', gg.TYPE_FLOAT)
 	end
 	-- disable "make crumbly blocks" :
-	if playerRadius[5] == true then
+	if playerRadius[6] == true then
 		if is_infhealth_actived == true then
 			PlayerEffect('17')
 		else
@@ -5975,14 +6685,14 @@ function RemoveCubegunsXYZ()
 	end
 	-------------------------
 	
-	if playerRadius[6] == true and playerRadius[4] ~= true then
+	if playerRadius[7] == true and playerRadius[5] ~= true then
 		AntiLagRadius('desactive') -- reset anti lag
 	end
 	
 	success('Actived Remove Cubes', 'Avatar Radius second', results)
 	-- continue code :
-	if avtradius ~= nil then
-		success('...', 'Avatar Radius third', avtradius, nil, true)
+	if third_radius_actived == true then
+		ChangeSavedResultName('Avatar Radius second', 'Avatar Radius third', 'float')
 	end
 end
 	
@@ -6097,6 +6807,11 @@ function ZoomCamera() -- rail gun method
 end
 
 function BazookaCrash()
+	if checkSavedResults('Bazooka Damage Value') then
+		isSavedResult('Bazooka Damage Value', '3.4E38', 'float')
+		return
+	end
+	
 	gg.clearResults()
 	gg.setRanges(gg.REGION_ANONYMOUS)
 	gg.searchNumber('1000;150;30', gg.TYPE_FLOAT)
